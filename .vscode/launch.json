@@ -1,0 +1,12 @@
+
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Lightmeter Windows",
+            "request": "launch",
+            "type": "dart",
+            "args": ["-d", "windows"]
+        }
+    ]
+}

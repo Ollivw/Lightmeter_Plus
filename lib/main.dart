@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:printing/printing.dart'; // Für stabiles PDF-Rendering
+import 'save_helper.dart' if (dart.library.html) 'save_helper_web.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
@@ -763,21 +764,13 @@ class _HomeScreenState extends State<HomeScreen> {
         'markers': _measurementPoints.map((m) => m.toJson()).toList(),
       };
 
-      String? outputPath = await FilePicker.platform.saveFile(
-        dialogTitle: 'Projekt speichern',
-        fileName: 'lichtmessung.lmp',
-        type: FileType.custom,
-        allowedExtensions: ['lmp'],
-      );
+      final bytes = Uint8List.fromList(utf8.encode(jsonEncode(projectData)));
+      final success = await saveProjectFile(bytes, 'lichtmessung.lmp');
 
-      if (outputPath != null) {
-        final file = File(outputPath);
-        await file.writeAsString(jsonEncode(projectData));
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Projekt erfolgreich gespeichert')),
-          );
-        }
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Projekt erfolgreich gespeichert')),
+        );
       }
     } catch (e) {
       debugPrint('Save Error: $e');

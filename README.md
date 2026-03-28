@@ -1,17 +1,14 @@
 # lightmeter_plus
 
-A new Flutter project.
+Illuminance Measurement made easy.
 
-## Getting Started
+For documentation on a floorplan with additional table 
 
-This project is a starting point for a Flutter application.
+Each room/area could be seperated , with seperate table .
+Measure points are marked with area/room and number.
 
-A few resources to get you started if this is your first Flutter project:
+Comiung next is to integrate sensor values from external sensors to push this values to the floorplan and table.
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+right now in alpha phase this values are just random
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+

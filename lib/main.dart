@@ -22,6 +22,29 @@ void main() {
   );
 }
 
+class MeasurementArea {
+  String name;
+  final List<MeasurementMarker> markers;
+
+  MeasurementArea({required this.name, List<MeasurementMarker>? markers})
+    : markers = markers ?? [];
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'markers': markers.map((m) => m.toJson()).toList(),
+  };
+
+  factory MeasurementArea.fromJson(Map<String, dynamic> json) =>
+      MeasurementArea(
+        name: json['name'] ?? 'Unbenannter Bereich',
+        markers:
+            (json['markers'] as List?)
+                ?.map((m) => MeasurementMarker.fromJson(m))
+                .toList() ??
+            [],
+      );
+}
+
 class MeasurementMarker {
   Offset position;
   String label;
@@ -140,7 +163,12 @@ class _HomeScreenState extends State<HomeScreen> {
   Offset _gridOffset = Offset.zero;
   bool _isMovingGrid = false;
 
-  final List<MeasurementMarker> _measurementPoints = [];
+  final List<MeasurementArea> _areas = [MeasurementArea(name: 'Standard')];
+  int _selectedAreaIndex = 0;
+
+  List<MeasurementMarker> get _currentPoints =>
+      _areas[_selectedAreaIndex].markers;
+
   bool _isCalibrating = false;
   Offset? _calibrationStart;
   Offset? _calibrationEnd;
@@ -177,7 +205,9 @@ class _HomeScreenState extends State<HomeScreen> {
         _pdfPath = null;
         _pdfBytes = null;
         _pdfSize = null;
-        _measurementPoints.clear();
+        _areas.clear();
+        _areas.add(MeasurementArea(name: 'Standard'));
+        _selectedAreaIndex = 0;
         _isCalibrating = false;
         _calibrationStart = null;
         _showGrid = false;
@@ -245,7 +275,9 @@ class _HomeScreenState extends State<HomeScreen> {
               _pdfBytes = png;
               _pdfSize = Size(page.width.toDouble(), page.height.toDouble());
               _pdfPath = kIsWeb ? null : platformFile.path;
-              _measurementPoints.clear();
+              _areas.clear();
+              _areas.add(MeasurementArea(name: 'Standard'));
+              _selectedAreaIndex = 0;
               _isCalibrating = false;
               _showGrid = false;
               _snapToGrid = false;
@@ -418,8 +450,73 @@ class _HomeScreenState extends State<HomeScreen> {
     return '${now.day.toString().padLeft(2, '0')}.${now.month.toString().padLeft(2, '0')}.${now.year} ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
   }
 
+  void _showAddAreaDialog() {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Neuer Bereich / Raum'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(labelText: 'Name des Bereichs'),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Abbrechen'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (controller.text.isNotEmpty) {
+                setState(() {
+                  _areas.add(MeasurementArea(name: controller.text));
+                  _selectedAreaIndex = _areas.length - 1;
+                });
+              }
+              Navigator.pop(context);
+            },
+            child: const Text('Erstellen'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showRenameAreaDialog(int index) {
+    final controller = TextEditingController(text: _areas[index].name);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Bereich umbenennen'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(labelText: 'Neuer Name'),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Abbrechen'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (controller.text.isNotEmpty) {
+                setState(() {
+                  _areas[index].name = controller.text;
+                });
+              }
+              Navigator.pop(context);
+            },
+            child: const Text('Speichern'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _editMarkerData(int index) {
-    final marker = _measurementPoints[index];
+    final marker = _currentPoints[index];
     final labelController = TextEditingController(text: marker.label);
     final valueController = TextEditingController(
       text: marker.sensorValue?.toString() ?? '',
@@ -473,6 +570,41 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: () => Navigator.pop(context),
             child: const Text('Abbrechen'),
           ),
+          if (_areas.length > 1)
+            TextButton(
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('Bereich löschen?'),
+                    content: Text(
+                      'Soll der Bereich "${_areas[_selectedAreaIndex].name}" inklusive aller Punkte gelöscht werden?',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text('Nein'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () {
+                          setState(() {
+                            _areas.removeAt(_selectedAreaIndex);
+                            _selectedAreaIndex = 0;
+                          });
+                          Navigator.pop(ctx);
+                          Navigator.pop(context);
+                        },
+                        child: const Text('Ja, löschen'),
+                      ),
+                    ],
+                  ),
+                );
+              },
+              child: const Text(
+                'Bereich löschen',
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
           ElevatedButton(
             onPressed: () {
               setState(() {
@@ -491,6 +623,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _exportToPdf() async {
     if (_pdfBytes == null) return;
+
+    // Check if we have any points at all
+    bool hasAnyPoints = _areas.any((area) => area.markers.isNotEmpty);
+    if (!hasAnyPoints) return;
 
     final pdf = pw.Document();
     final image = pw.MemoryImage(_pdfBytes!);
@@ -511,7 +647,8 @@ class _HomeScreenState extends State<HomeScreen> {
               child: pw.Stack(
                 children: [
                   pw.Image(image),
-                  ..._measurementPoints.map((marker) {
+                  // Draw points for ALL areas on the plan, perhaps with different colors or just labels
+                  ..._areas.expand((area) => area.markers).map((marker) {
                     return pw.Positioned(
                       left: marker.position.dx - (_markerSize / 2),
                       top: marker.position.dy - _markerSize,
@@ -519,9 +656,18 @@ class _HomeScreenState extends State<HomeScreen> {
                         mainAxisSize: pw.MainAxisSize.min,
                         children: [
                           pw.Text(
-                            marker.label,
+                            area.name,
                             style: pw.TextStyle(
-                              fontSize: _markerSize * 0.6,
+                              fontSize: _markerSize * 0.3,
+                              color: PdfColors.grey700,
+                            ),
+                          ),
+                          pw.Text(
+                            marker.label.isNotEmpty
+                                ? marker.label
+                                : '${markerIndex + 1}',
+                            style: pw.TextStyle(
+                              fontSize: _markerSize * 0.5,
                               color: PdfColors.red,
                               fontWeight: pw.FontWeight.bold,
                             ),
@@ -583,149 +729,161 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    // Seite 2: Tabellarische Auflistung
-    final sensorValues = _measurementPoints
-        .map((m) => m.sensorValue)
-        .whereType<double>()
-        .toList();
+    // Add Pages per Area
+    for (var area in _areas) {
+      if (area.markers.isEmpty) continue;
 
-    final double? minVal = sensorValues.isEmpty
-        ? null
-        : sensorValues.reduce(min);
-    final double? maxVal = sensorValues.isEmpty
-        ? null
-        : sensorValues.reduce(max);
-    final double? meanVal = sensorValues.isEmpty
-        ? null
-        : sensorValues.reduce((a, b) => a + b) / sensorValues.length;
+      final sensorValues = area.markers
+          .map((m) => m.sensorValue)
+          .whereType<double>()
+          .toList();
+      final double? minVal = sensorValues.isEmpty
+          ? null
+          : sensorValues.reduce(min);
+      final double? maxVal = sensorValues.isEmpty
+          ? null
+          : sensorValues.reduce(max);
+      final double? meanVal = sensorValues.isEmpty
+          ? null
+          : sensorValues.reduce((a, b) => a + b) / sensorValues.length;
 
-    pdf.addPage(
-      pw.Page(
-        build: (pw.Context context) {
-          return pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Text(
-                'Messbericht - Beleuchtungsstärken',
-                style: pw.TextStyle(
-                  fontSize: 24,
-                  fontWeight: pw.FontWeight.bold,
-                ),
-              ),
-              pw.SizedBox(height: 20),
-
-              // Projekt-Details Header
-              pw.Container(
-                padding: const pw.EdgeInsets.all(10),
-                decoration: const pw.BoxDecoration(
-                  color: PdfColors.grey100,
-                  borderRadius: pw.BorderRadius.all(pw.Radius.circular(8)),
-                ),
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Row(
-                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                      children: [
-                        pw.Text(
-                          'Projekt: ${_projectName.isEmpty ? "Unbenannt" : _projectName}',
-                          style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                        ),
-                        pw.Text('Datum/Zeit: ${_getFormattedDateTime()}'),
-                      ],
-                    ),
-                    pw.Divider(color: PdfColors.grey300),
-                    pw.Text(
-                      'Prüfer: ${_surveyorName.isEmpty ? "Nicht angegeben" : _surveyorName}',
-                    ),
-                    pw.Text(
-                      'Geräte: ${_usedDevices.isEmpty ? "Nicht angegeben" : _usedDevices}',
-                    ),
-                    if (_additionalNotes.isNotEmpty)
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.only(top: 4),
-                        child: pw.Text(
-                          'Notizen: $_additionalNotes',
-                          style: pw.TextStyle(
-                            fontStyle: pw.FontStyle.italic,
-                            color: PdfColors.grey700,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              pw.SizedBox(height: 25),
-
-              // Statistik Dashboard
-              if (sensorValues.isNotEmpty)
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    buildPdfStatCard(
-                      'Minimum (Emin)',
-                      '${minVal!.toStringAsFixed(1)} lx',
-                      PdfColors.blueGrey700,
-                    ),
-                    buildPdfStatCard(
-                      'Mittelwert (Em)',
-                      '${meanVal!.toStringAsFixed(1)} lx',
-                      PdfColors.blue700,
-                    ),
-                    buildPdfStatCard(
-                      'Maximum (Emax)',
-                      '${maxVal!.toStringAsFixed(1)} lx',
-                      PdfColors.teal700,
-                    ),
-                  ],
-                ),
-              pw.SizedBox(height: 30),
-
-              pw.Table.fromTextArray(
-                border: null,
-                headerStyle: pw.TextStyle(
-                  color: PdfColors.white,
-                  fontWeight: pw.FontWeight.bold,
-                ),
-                headerDecoration: const pw.BoxDecoration(
-                  color: PdfColors.blueGrey900,
-                ),
-                rowDecoration: const pw.BoxDecoration(
-                  border: pw.Border(
-                    bottom: pw.BorderSide(color: PdfColors.grey300, width: 0.5),
+      pdf.addPage(
+        pw.Page(
+          build: (pw.Context context) {
+            return pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  'Messbericht - Bereich: ${area.name}',
+                  style: pw.TextStyle(
+                    fontSize: 24,
+                    fontWeight: pw.FontWeight.bold,
                   ),
                 ),
-                cellHeight: 30,
-                cellAlignments: {
-                  0: pw.Alignment.centerLeft,
-                  1: pw.Alignment.centerLeft,
-                  2: pw.Alignment.centerLeft,
-                  3: pw.Alignment.centerLeft,
-                  4: pw.Alignment.centerRight,
-                },
-                headers: ['#', 'Bezeichnung', 'Position (X/Y)', 'Höhe', 'Wert'],
-                data: _measurementPoints.asMap().entries.map((e) {
-                  final m = e.value;
-                  final x = (m.position.dx / _pixelsPerMeter).toStringAsFixed(
-                    2,
-                  );
-                  final y = (m.position.dy / _pixelsPerMeter).toStringAsFixed(
-                    2,
-                  );
-                  return [
-                    '${e.key + 1}',
-                    m.label,
-                    '${x}m / ${y}m',
-                    '${m.height}m',
-                    m.sensorValue != null ? '${m.sensorValue} lx' : '-',
-                  ];
-                }).toList(),
-              ),
-            ],
-          );
-        },
-      ),
-    );
+                pw.SizedBox(height: 20),
+
+                // Projekt-Details Header
+                pw.Container(
+                  padding: const pw.EdgeInsets.all(10),
+                  decoration: const pw.BoxDecoration(
+                    color: PdfColors.grey100,
+                    borderRadius: pw.BorderRadius.all(pw.Radius.circular(8)),
+                  ),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                        children: [
+                          pw.Text(
+                            'Projekt: ${_projectName.isEmpty ? "Unbenannt" : _projectName}',
+                            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                          ),
+                          pw.Text('Datum/Zeit: ${_getFormattedDateTime()}'),
+                        ],
+                      ),
+                      pw.Divider(color: PdfColors.grey300),
+                      pw.Text(
+                        'Prüfer: ${_surveyorName.isEmpty ? "Nicht angegeben" : _surveyorName}',
+                      ),
+                      pw.Text(
+                        'Geräte: ${_usedDevices.isEmpty ? "Nicht angegeben" : _usedDevices}',
+                      ),
+                      if (_additionalNotes.isNotEmpty)
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.only(top: 4),
+                          child: pw.Text(
+                            'Notizen: $_additionalNotes',
+                            style: pw.TextStyle(
+                              fontStyle: pw.FontStyle.italic,
+                              color: PdfColors.grey700,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                pw.SizedBox(height: 25),
+
+                // Statistik Dashboard
+                if (sensorValues.isNotEmpty)
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      buildPdfStatCard(
+                        'Minimum (Emin)',
+                        '${minVal!.toStringAsFixed(1)} lx',
+                        PdfColors.blueGrey700,
+                      ),
+                      buildPdfStatCard(
+                        'Mittelwert (Em)',
+                        '${meanVal!.toStringAsFixed(1)} lx',
+                        PdfColors.blue700,
+                      ),
+                      buildPdfStatCard(
+                        'Maximum (Emax)',
+                        '${maxVal!.toStringAsFixed(1)} lx',
+                        PdfColors.teal700,
+                      ),
+                    ],
+                  ),
+                pw.SizedBox(height: 30),
+
+                pw.Table.fromTextArray(
+                  border: null,
+                  headerStyle: pw.TextStyle(
+                    color: PdfColors.white,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                  headerDecoration: const pw.BoxDecoration(
+                    color: PdfColors.blueGrey900,
+                  ),
+                  rowDecoration: const pw.BoxDecoration(
+                    border: pw.Border(
+                      bottom: pw.BorderSide(
+                        color: PdfColors.grey300,
+                        width: 0.5,
+                      ),
+                    ),
+                  ),
+                  cellHeight: 30,
+                  cellAlignments: {
+                    0: pw.Alignment.centerLeft,
+                    1: pw.Alignment.centerLeft,
+                    2: pw.Alignment.centerLeft,
+                    3: pw.Alignment.centerLeft,
+                    4: pw.Alignment.centerRight,
+                  },
+                  headers: [
+                    '#',
+                    'Bezeichnung',
+                    'Position (X/Y)',
+                    'Höhe',
+                    'Wert',
+                  ],
+                  data: area.markers.asMap().entries.map((e) {
+                    final m = e.value;
+                    final x = (m.position.dx / _pixelsPerMeter).toStringAsFixed(
+                      2,
+                    );
+                    final y = (m.position.dy / _pixelsPerMeter).toStringAsFixed(
+                      2,
+                    );
+                    return [
+                      '${e.key + 1}',
+                      m.label,
+                      '${x}m / ${y}m',
+                      '${m.height}m',
+                      m.sensorValue != null ? '${m.sensorValue} lx' : '-',
+                    ];
+                  }).toList(),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+    }
 
     await Printing.layoutPdf(
       onLayout: (PdfPageFormat format) async => pdf.save(),
@@ -761,7 +919,7 @@ class _HomeScreenState extends State<HomeScreen> {
         'pdfSizeWidth': _pdfSize?.width,
         'pdfSizeHeight': _pdfSize?.height,
         'pdfBytesBase64': base64Encode(_pdfBytes!),
-        'markers': _measurementPoints.map((m) => m.toJson()).toList(),
+        'areas': _areas.map((a) => a.toJson()).toList(),
       };
 
       final bytes = Uint8List.fromList(utf8.encode(jsonEncode(projectData)));
@@ -811,10 +969,13 @@ class _HomeScreenState extends State<HomeScreen> {
             _markerSize = data['markerSize'] ?? 24.0;
             _pdfSize = Size(data['pdfSizeWidth'], data['pdfSizeHeight']);
             _pdfBytes = base64Decode(data['pdfBytesBase64']);
-            _measurementPoints.clear();
-            for (var m in data['markers']) {
-              _measurementPoints.add(MeasurementMarker.fromJson(m));
+            _areas.clear();
+            if (data['areas'] != null) {
+              for (var a in data['areas']) {
+                _areas.add(MeasurementArea.fromJson(a));
+              }
             }
+            _selectedAreaIndex = 0;
           });
         }
       }
@@ -945,7 +1106,7 @@ class _HomeScreenState extends State<HomeScreen> {
               title: const Text('Messpunkte löschen'),
               onTap: () {
                 Navigator.pop(context);
-                setState(() => _measurementPoints.clear());
+                setState(() => _currentPoints.clear());
               },
             ),
             ListTile(
@@ -1031,220 +1192,289 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-      body: _pdfBytes == null
-          ? Center(
-              child: ElevatedButton(
-                onPressed: _pickPdf,
-                child: const Text('PDF Grundriss laden'),
-              ),
-            )
-          : LayoutBuilder(
-              // New: Use LayoutBuilder to get the available size for the PDF
-              builder: (context, constraints) {
-                // Update _viewportSize whenever the layout changes
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (_viewportSize != constraints.biggest) {
-                    setState(() {
-                      _viewportSize = constraints.biggest;
-                      // Optionally refit the PDF if viewport changes significantly
-                      // _fitPdfToScreen();
-                    });
-                  }
-                });
-
-                return InteractiveViewer(
-                  transformationController: _transformationController,
-                  constrained: false,
-                  boundaryMargin: const EdgeInsets.all(double.infinity),
-                  minScale: 0.1,
-                  maxScale: 10.0,
-                  child: SizedBox(
-                    key: _pdfKey,
-                    width: _pdfSize?.width,
-                    height: _pdfSize?.height,
-                    child: Stack(
-                      children: [
-                        // The actual PDF Image
-                        Image.memory(
-                          _pdfBytes!,
-                          fit: BoxFit.none,
-                          alignment: Alignment.topLeft,
-                        ),
-                        // Hilfsraster
-                        if (_showGrid && _pdfSize != null)
-                          Positioned.fill(
-                            child: CustomPaint(
-                              painter: GridPainter(
-                                gridSizeX: _gridSizeX * _pixelsPerMeter,
-                                gridSizeY: _gridSizeY * _pixelsPerMeter,
-                                offset: _gridOffset,
-                                pdfSize: _pdfSize!,
-                                controller: _transformationController,
-                              ),
-                            ),
-                          ),
-                        // Interaction layer (Tap to add points)
-                        Positioned.fill(
+      body: Column(
+        children: [
+          if (_pdfBytes != null)
+            Container(
+              height: 50,
+              color: Theme.of(context).primaryColor.withOpacity(0.1),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _areas.length,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      itemBuilder: (context, index) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
                           child: GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onPanUpdate: _isMovingGrid
-                                ? (details) {
-                                    final scale = _transformationController
-                                        .value
-                                        .getMaxScaleOnAxis();
-                                    setState(
-                                      () =>
-                                          _gridOffset += details.delta / scale,
-                                    );
-                                  }
-                                : null,
-                            onTapUp: (TapUpDetails details) {
-                              if (_isMovingGrid) return;
-                              final position = _snapToGridOffset(
-                                details.localPosition,
-                              );
-                              if (_isCalibrating) {
-                                if (_calibrationStart == null) {
-                                  setState(() => _calibrationStart = position);
-                                } else if (_calibrationEnd == null) {
-                                  setState(() => _calibrationEnd = position);
-                                  _showCalibrationDialog();
-                                }
-                              } else {
-                                setState(() {
-                                  _measurementPoints.add(
-                                    MeasurementMarker(
-                                      position: position,
-                                      height: 0.8,
-                                      label:
-                                          'Punkt ${_measurementPoints.length + 1}',
-                                    ),
-                                  );
-                                });
-                              }
-                            },
-                            child: MouseRegion(
-                              onHover: (event) {
-                                if (_isCalibrating) {
-                                  setState(
-                                    () => _currentMousePosition =
-                                        event.localPosition,
-                                  );
+                            onLongPress: () => _showRenameAreaDialog(index),
+                            child: ChoiceChip(
+                              label: Text(_areas[index].name),
+                              selected: _selectedAreaIndex == index,
+                              onSelected: (selected) {
+                                if (selected) {
+                                  setState(() => _selectedAreaIndex = index);
                                 }
                               },
-                              child: CustomPaint(
-                                painter: MeasurementPainter(
-                                  calibrationStart: _calibrationStart,
-                                  calibrationEnd: _calibrationEnd,
-                                  currentMousePosition: _currentMousePosition,
-                                  isCalibrating: _isCalibrating,
-                                  controller: _transformationController,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.add_circle_outline),
+                    onPressed: _showAddAreaDialog,
+                    tooltip: 'Neuen Bereich anlegen',
+                  ),
+                ],
+              ),
+            ),
+          Expanded(
+            child: _pdfBytes == null
+                ? Center(
+                    child: ElevatedButton(
+                      onPressed: _pickPdf,
+                      child: const Text('PDF Grundriss laden'),
+                    ),
+                  )
+                : LayoutBuilder(
+                    // New: Use LayoutBuilder to get the available size for the PDF
+                    builder: (context, constraints) {
+                      // Update _viewportSize whenever the layout changes
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (_viewportSize != constraints.biggest) {
+                          setState(() {
+                            _viewportSize = constraints.biggest;
+                            // Optionally refit the PDF if viewport changes significantly
+                            // _fitPdfToScreen();
+                          });
+                        }
+                      });
+
+                      return InteractiveViewer(
+                        transformationController: _transformationController,
+                        constrained: false,
+                        boundaryMargin: const EdgeInsets.all(double.infinity),
+                        minScale: 0.1,
+                        maxScale: 10.0,
+                        child: SizedBox(
+                          key: _pdfKey,
+                          width: _pdfSize?.width,
+                          height: _pdfSize?.height,
+                          child: Stack(
+                            children: [
+                              // The actual PDF Image
+                              Image.memory(
+                                _pdfBytes!,
+                                fit: BoxFit.none,
+                                alignment: Alignment.topLeft,
+                              ),
+                              // Hilfsraster
+                              if (_showGrid && _pdfSize != null)
+                                Positioned.fill(
+                                  child: CustomPaint(
+                                    painter: GridPainter(
+                                      gridSizeX: _gridSizeX * _pixelsPerMeter,
+                                      gridSizeY: _gridSizeY * _pixelsPerMeter,
+                                      offset: _gridOffset,
+                                      pdfSize: _pdfSize!,
+                                      controller: _transformationController,
+                                    ),
+                                  ),
+                                ),
+                              // Interaction layer (Tap to add points)
+                              Positioned.fill(
+                                child: GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onPanUpdate: _isMovingGrid
+                                      ? (details) {
+                                          final scale =
+                                              _transformationController.value
+                                                  .getMaxScaleOnAxis();
+                                          setState(
+                                            () => _gridOffset +=
+                                                details.delta / scale,
+                                          );
+                                        }
+                                      : null,
+                                  onTapUp: (TapUpDetails details) {
+                                    if (_isMovingGrid) return;
+                                    final position = _snapToGridOffset(
+                                      details.localPosition,
+                                    );
+                                    if (_isCalibrating) {
+                                      if (_calibrationStart == null) {
+                                        setState(
+                                          () => _calibrationStart = position,
+                                        );
+                                      } else if (_calibrationEnd == null) {
+                                        setState(
+                                          () => _calibrationEnd = position,
+                                        );
+                                        _showCalibrationDialog();
+                                      }
+                                    } else {
+                                      setState(() {
+                                        _currentPoints.add(
+                                          MeasurementMarker(
+                                            position: position,
+                                            height: 0.8,
+                                            label:
+                                                'P${_currentPoints.length + 1}',
+                                          ),
+                                        );
+                                      });
+                                    }
+                                  },
+                                  child: MouseRegion(
+                                    onHover: (event) {
+                                      if (_isCalibrating) {
+                                        setState(
+                                          () => _currentMousePosition =
+                                              event.localPosition,
+                                        );
+                                      }
+                                    },
+                                    child: CustomPaint(
+                                      painter: MeasurementPainter(
+                                        calibrationStart: _calibrationStart,
+                                        calibrationEnd: _calibrationEnd,
+                                        currentMousePosition:
+                                            _currentMousePosition,
+                                        isCalibrating: _isCalibrating,
+                                        controller: _transformationController,
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ),
-                          ),
-                        ),
-                        // Measurement Markers
-                        ..._measurementPoints.asMap().entries.map((entry) {
-                          int index = entry.key;
-                          MeasurementMarker marker = entry.value;
-                          return Positioned(
-                            left: marker.position.dx - (_markerSize / 2),
-                            top: marker.position.dy - _markerSize,
-                            child: GestureDetector(
-                              onTap: () => _editMarkerData(index),
-                              onPanStart: (details) {
-                                final RenderBox box =
-                                    _pdfKey.currentContext!.findRenderObject()
-                                        as RenderBox;
-                                final Offset localTouch = box.globalToLocal(
-                                  details.globalPosition,
-                                );
-                                _dragPositionAccumulator =
-                                    localTouch - marker.position;
-                              },
-                              onPanUpdate: (details) {
-                                final RenderBox box =
-                                    _pdfKey.currentContext!.findRenderObject()
-                                        as RenderBox;
-                                final Offset localTouch = box.globalToLocal(
-                                  details.globalPosition,
-                                );
-                                setState(() {
-                                  final newPos =
-                                      localTouch - _dragPositionAccumulator;
-                                  _measurementPoints[index].position =
-                                      _snapToGridOffset(newPos);
-                                });
-                              },
-                              onSecondaryTap: () {
-                                setState(() {
-                                  _measurementPoints.removeAt(index);
-                                });
-                              },
-                              child: Column(
-                                children: [
-                                  Text(
-                                    marker.label.isNotEmpty
-                                        ? marker.label
-                                        : '${index + 1}',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: _markerSize * 0.6,
-                                      shadows: const [
-                                        Shadow(
-                                          blurRadius: 2.0,
-                                          color: Colors.black,
-                                          offset: Offset(1.0, 1.0),
+                              // Measurement Markers
+                              ..._currentPoints.asMap().entries.map((entry) {
+                                int index = entry.key;
+                                MeasurementMarker marker = entry.value;
+                                return Positioned(
+                                  left: marker.position.dx - (_markerSize / 2),
+                                  top: marker.position.dy - _markerSize,
+                                  child: GestureDetector(
+                                    onTap: () => _editMarkerData(index),
+                                    onPanStart: (details) {
+                                      final RenderBox box =
+                                          _pdfKey.currentContext!
+                                                  .findRenderObject()
+                                              as RenderBox;
+                                      final Offset localTouch = box
+                                          .globalToLocal(
+                                            details.globalPosition,
+                                          );
+                                      _dragPositionAccumulator =
+                                          localTouch - marker.position;
+                                    },
+                                    onPanUpdate: (details) {
+                                      final RenderBox box =
+                                          _pdfKey.currentContext!
+                                                  .findRenderObject()
+                                              as RenderBox;
+                                      final Offset localTouch = box
+                                          .globalToLocal(
+                                            details.globalPosition,
+                                          );
+                                      setState(() {
+                                        final newPos =
+                                            localTouch -
+                                            _dragPositionAccumulator;
+                                        _currentPoints[index].position =
+                                            _snapToGridOffset(newPos);
+                                      });
+                                    },
+                                    onSecondaryTap: () {
+                                      setState(() {
+                                        _currentPoints.removeAt(index);
+                                      });
+                                    },
+                                    child: Column(
+                                      children: [
+                                        Text(
+                                          _areas[_selectedAreaIndex].name,
+                                          style: TextStyle(
+                                            color: Colors.white70,
+                                            fontSize: _markerSize * 0.3,
+                                            shadows: const [
+                                              Shadow(
+                                                blurRadius: 2.0,
+                                                color: Colors.black,
+                                                offset: Offset(1.0, 1.0),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        Text(
+                                          marker.label.isNotEmpty
+                                              ? marker.label
+                                              : '${index + 1}',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: _markerSize * 0.5,
+                                            shadows: const [
+                                              Shadow(
+                                                blurRadius: 2.0,
+                                                color: Colors.black,
+                                                offset: Offset(1.0, 1.0),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        if (marker.sensorValue != null)
+                                          Container(
+                                            padding: EdgeInsets.symmetric(
+                                              horizontal: _markerSize * 0.15,
+                                              vertical: _markerSize * 0.08,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.black54,
+                                              borderRadius:
+                                                  BorderRadius.circular(
+                                                    _markerSize * 0.15,
+                                                  ),
+                                            ),
+                                            child: Text(
+                                              '${marker.sensorValue} lx',
+                                              style: TextStyle(
+                                                color: Colors.greenAccent,
+                                                fontSize: _markerSize * 0.5,
+                                              ),
+                                            ),
+                                          ),
+                                        Icon(
+                                          Icons.location_on,
+                                          color: Colors.red,
+                                          size: _markerSize,
                                         ),
                                       ],
                                     ),
                                   ),
-                                  if (marker.sensorValue != null)
-                                    Container(
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: _markerSize * 0.15,
-                                        vertical: _markerSize * 0.08,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.black54,
-                                        borderRadius: BorderRadius.circular(
-                                          _markerSize * 0.15,
-                                        ),
-                                      ),
-                                      child: Text(
-                                        '${marker.sensorValue} lx',
-                                        style: TextStyle(
-                                          color: Colors.greenAccent,
-                                          fontSize: _markerSize * 0.5,
-                                        ),
-                                      ),
-                                    ),
-                                  Icon(
-                                    Icons.location_on,
-                                    color: Colors.red,
-                                    size: _markerSize,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        }),
-                      ],
-                    ),
+                                );
+                              }),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
-            ),
-      bottomSheet: _measurementPoints.isNotEmpty
+          ),
+        ],
+      ),
+      bottomSheet: _currentPoints.isNotEmpty
           ? Container(
               height: 120,
               color: Theme.of(context).cardColor,
               child: ListView.builder(
-                itemCount: _measurementPoints.length,
+                itemCount: _currentPoints.length,
                 itemBuilder: (context, index) {
-                  final marker = _measurementPoints[index];
+                  final marker = _currentPoints[index];
                   double realX = marker.position.dx / _pixelsPerMeter;
                   double realY = marker.position.dy / _pixelsPerMeter;
                   return ListTile(
@@ -1255,7 +1485,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         style: const TextStyle(color: Colors.white),
                       ),
                     ),
-                    title: Text('${marker.label} (h: ${marker.height}m)'),
+                    title: Text(
+                      '${_areas[_selectedAreaIndex].name} - ${marker.label.isNotEmpty ? marker.label : index + 1} (h: ${marker.height}m)',
+                    ),
                     subtitle: Text(
                       'Pos: ${realX.toStringAsFixed(2)}m / ${realY.toStringAsFixed(2)}m ${marker.sensorValue != null ? "| Wert: ${marker.sensorValue} Lux" : ""}',
                     ),

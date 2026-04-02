@@ -1,16 +1,24 @@
 import 'dart:io';
 import 'dart:convert';
 import 'dart:math';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:light_sensor/light_sensor.dart';
+import 'dart:async';
+import 'package:flutter_web_bluetooth/flutter_web_bluetooth.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:printing/printing.dart'; // Für stabiles PDF-Rendering
+import 'package:url_launcher/url_launcher.dart';
 import 'save_helper.dart' if (dart.library.html) 'save_helper_web.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+
+import 'widgets/bluetooth_service.dart';
+import 'models/measurement_models.dart';
+import 'providers/theme_provider.dart';
+import 'widgets/custom_painters.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,99 +26,6 @@ void main() {
     ChangeNotifierProvider(
       create: (_) => ThemeProvider(),
       child: const LightmeterApp(),
-    ),
-  );
-}
-
-class MeasurementArea {
-  String name;
-  final List<MeasurementMarker> markers;
-
-  MeasurementArea({required this.name, List<MeasurementMarker>? markers})
-    : markers = markers ?? [];
-
-  Map<String, dynamic> toJson() => {
-    'name': name,
-    'markers': markers.map((m) => m.toJson()).toList(),
-  };
-
-  factory MeasurementArea.fromJson(Map<String, dynamic> json) =>
-      MeasurementArea(
-        name: json['name'] ?? 'Unbenannter Bereich',
-        markers:
-            (json['markers'] as List?)
-                ?.map((m) => MeasurementMarker.fromJson(m))
-                .toList() ??
-            [],
-      );
-}
-
-class MeasurementMarker {
-  Offset position;
-  String label;
-  double height;
-  double? sensorValue;
-
-  MeasurementMarker({
-    required this.position,
-    this.label = '',
-    this.height = 0.8,
-    this.sensorValue,
-  });
-
-  Map<String, dynamic> toJson() => {
-    'dx': position.dx,
-    'dy': position.dy,
-    'label': label,
-    'height': height,
-    'sensorValue': sensorValue,
-  };
-
-  factory MeasurementMarker.fromJson(Map<String, dynamic> json) =>
-      MeasurementMarker(
-        position: Offset(
-          (json['dx'] as num).toDouble(),
-          (json['dy'] as num).toDouble(),
-        ),
-        label: json['label'],
-        height: (json['height'] as num).toDouble(),
-        sensorValue: json['sensorValue'] != null
-            ? (json['sensorValue'] as num).toDouble()
-            : null,
-      );
-}
-
-class ThemeProvider with ChangeNotifier {
-  bool _isDarkMode = false;
-  Color _backgroundColor = const Color(0xFFF5F5F5);
-
-  bool get isDarkMode => _isDarkMode;
-  Color get backgroundColor => _backgroundColor;
-
-  void toggleTheme() {
-    _isDarkMode = !_isDarkMode;
-    notifyListeners();
-  }
-
-  void setBackgroundColor(Color color) {
-    _backgroundColor = color;
-    notifyListeners();
-  }
-
-  ThemeData get theme => ThemeData(
-    useMaterial3: true,
-    brightness: _isDarkMode ? Brightness.dark : Brightness.light,
-    primaryColor: const Color(0xFF263238),
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: const Color(0xFF263238),
-      brightness: _isDarkMode ? Brightness.dark : Brightness.light,
-    ),
-    scaffoldBackgroundColor: backgroundColor,
-    appBarTheme: AppBarTheme(
-      backgroundColor: _isDarkMode
-          ? const Color(0xFF263238)
-          : Colors.blueGrey[700],
-      foregroundColor: Colors.white,
     ),
   );
 }
@@ -141,7 +56,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  String? _pdfPath;
   bool _isLoading = false;
   Uint8List? _pdfBytes;
   Size? _pdfSize;
@@ -152,8 +66,178 @@ class _HomeScreenState extends State<HomeScreen> {
   // Project Information
   String _projectName = '';
   String _surveyorName = '';
+  String _projectDate = '';
   String _usedDevices = '';
   String _additionalNotes = '';
+  bool _showSensorSheet = false;
+
+  bool _hasHardwareSensor = false;
+  StreamSubscription? _lightSubscription;
+  BluetoothDevice? _btDevice;
+  bool _isBluetoothConnecting = false;
+
+  // Aktuelle Sensorwerte
+  double? _currentDistanceValue;
+  DateTime _lastUiUpdate = DateTime.fromMillisecondsSinceEpoch(0);
+
+  @override
+  void initState() {
+    super.initState();
+    _projectDate = _getFormattedDateTime();
+    _initLightSensor();
+  }
+
+  @override
+  void dispose() {
+    _lightSubscription?.cancel();
+    _btDevice?.disconnect();
+    super.dispose();
+  }
+
+  Future<void> _initLightSensor() async {
+    _lightSubscription?.cancel();
+
+    // Das Plugin 'light_sensor' unterstützt nur Android nativ.
+    final bool isNativeAndroid = !kIsWeb && Platform.isAndroid;
+
+    if (isNativeAndroid) {
+      try {
+        bool hasSensor = await LightSensor.hasSensor();
+        if (hasSensor) {
+          setState(() => _hasHardwareSensor = true);
+          _lightSubscription = LightSensor.luxStream().listen(
+            (lux) {
+              if (mounted) {
+                setState(() => _currentLightValue = lux.toDouble());
+              }
+            },
+            onError: (e) {
+              debugPrint('Sensor Stream Fehler: $e');
+              _startSimulation();
+            },
+          );
+          return; // Erfolgreich gestartet
+        }
+      } catch (e) {
+        debugPrint('Fehler beim Sensor-Check: $e');
+      }
+    }
+
+    // Fallback zu Simulation (Web, iOS, Emulator oder kein Sensor)
+    _startSimulation();
+  }
+
+  void _startSimulation() {
+    _lightSubscription?.cancel();
+    setState(() => _hasHardwareSensor = false);
+    _lightSubscription =
+        Stream.periodic(const Duration(milliseconds: 1500), (count) {
+          return 250.0 + (Random().nextDouble() * 20 - 10);
+        }).listen((simulatedValue) {
+          if (mounted) {
+            setState(() => _currentLightValue = simulatedValue);
+          }
+        });
+  }
+
+  Future<void> _connectExternalSensor() async {
+    if (!kIsWeb) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Bluetooth-Sensoren werden aktuell nur in der Web-Version unterstützt.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    final bool bluetoothAvailable =
+        await FlutterWebBluetooth.instance.isAvailable.first;
+    if (!bluetoothAvailable) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Web Bluetooth ist in diesem Browser nicht verfügbar oder deaktiviert.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    setState(() => _isBluetoothConnecting = true);
+    try {
+      final device = await AppBluetoothService.requestDevice();
+
+      await device.connect();
+      setState(() => _btDevice = device);
+
+      // FIX: Breche die Simulation oder den internen Sensor-Stream ab,
+      // damit die Werte nicht mit den Bluetooth-Daten kollidieren.
+      await _lightSubscription?.cancel();
+      _lightSubscription = null;
+
+      final characteristicFound = await AppBluetoothService.discoverAndListen(
+        device,
+        _handleBluetoothData,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              characteristicFound
+                  ? 'Verbunden mit "${device.name ?? 'Unbekannt'}"'
+                  : 'Verbunden, aber keine passende Daten-Charakteristik gefunden.',
+            ),
+            backgroundColor: characteristicFound ? Colors.green : Colors.orange,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Bluetooth Fehler: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Verbindung fehlgeschlagen: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isBluetoothConnecting = false);
+    }
+  }
+
+  void _handleBluetoothData(String uuid, ByteData data) {
+    try {
+      bool updated = false;
+
+      // Parsing basierend auf der UUID (wie im HTML Script)
+      if (uuid == AppBluetoothService.luxCharUuid && data.lengthInBytes >= 4) {
+        _currentLightValue = data.getFloat32(0, Endian.little);
+        updated = true;
+      } else if (uuid == AppBluetoothService.distCharUuid &&
+          data.lengthInBytes >= 2) {
+        _currentDistanceValue = data.getUint16(0, Endian.little).toDouble();
+        updated = true;
+      }
+
+      if (updated && mounted) {
+        final now = DateTime.now();
+        // Drosselung auf max 10 Updates pro Sekunde
+        if (now.difference(_lastUiUpdate).inMilliseconds > 100) {
+          setState(() {
+            _hasHardwareSensor = true;
+          });
+          _lastUiUpdate = now;
+        }
+      }
+    } catch (e) {
+      debugPrint('Fehler beim Parsen der Bluetooth-Daten: $e');
+    }
+  }
 
   // Grid Settings
   bool _showGrid = false;
@@ -163,7 +247,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Offset _gridOffset = Offset.zero;
   bool _isMovingGrid = false;
 
-  final List<MeasurementArea> _areas = [MeasurementArea(name: 'Standard')];
+  final List<MeasurementArea> _areas = [MeasurementArea(name: 'Allgemein')];
   int _selectedAreaIndex = 0;
 
   List<MeasurementMarker> get _currentPoints =>
@@ -174,10 +258,18 @@ class _HomeScreenState extends State<HomeScreen> {
   Offset? _calibrationEnd;
   Offset? _currentMousePosition;
   double _pixelsPerMeter = 100.0;
+  Uint8List? _logoBytes;
+  bool _isExportingPdf = false; // New state variable for PDF export progress
+  bool _isSettingReferencePoint = false;
+  Offset _referencePoint = Offset.zero;
   double _markerSize = 24.0;
   Offset _dragPositionAccumulator = Offset.zero;
   final TransformationController _transformationController =
       TransformationController();
+
+  // Sensor-bezogene Variablen
+  double? _currentLightValue;
+  double _lightCalibrationFactor = 1.0;
 
   Future<void> _confirmReset() async {
     final bool? confirm = await showDialog<bool>(
@@ -202,12 +294,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (confirm == true) {
       setState(() {
-        _pdfPath = null;
         _pdfBytes = null;
+        _logoBytes = null;
         _pdfSize = null;
         _areas.clear();
-        _areas.add(MeasurementArea(name: 'Standard'));
+        _areas.add(MeasurementArea(name: 'Allgemein'));
         _selectedAreaIndex = 0;
+        _referencePoint = Offset.zero;
+        _isSettingReferencePoint = false;
         _isCalibrating = false;
         _calibrationStart = null;
         _showGrid = false;
@@ -218,8 +312,10 @@ class _HomeScreenState extends State<HomeScreen> {
         _isMovingGrid = false;
         _projectName = '';
         _surveyorName = '';
+        _projectDate = _getFormattedDateTime();
         _usedDevices = '';
         _additionalNotes = '';
+        _pixelsPerMeter = 100.0;
         _calibrationEnd = null;
         _currentMousePosition = null;
         _transformationController.value = Matrix4.identity();
@@ -271,12 +367,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
           await for (var page in Printing.raster(bytes, pages: [0], dpi: 300)) {
             final png = await page.toPng();
+            print(
+              'PDF Page rendered: ${page.width}x${page.height}, bytes: ${png.length}',
+            );
             setState(() {
               _pdfBytes = png;
               _pdfSize = Size(page.width.toDouble(), page.height.toDouble());
-              _pdfPath = kIsWeb ? null : platformFile.path;
               _areas.clear();
-              _areas.add(MeasurementArea(name: 'Standard'));
+              _areas.add(MeasurementArea(name: 'Allgemein'));
               _selectedAreaIndex = 0;
               _isCalibrating = false;
               _showGrid = false;
@@ -309,6 +407,32 @@ class _HomeScreenState extends State<HomeScreen> {
             backgroundColor: Colors.red,
           ),
         );
+      }
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _pickLogo() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(type: FileType.image);
+      if (result != null) {
+        final platformFile = result.files.single;
+        final Uint8List? bytes =
+            platformFile.bytes ??
+            (!kIsWeb && platformFile.path != null
+                ? await File(platformFile.path!).readAsBytes()
+                : null);
+
+        setState(() {
+          _logoBytes = bytes;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Logo-Fehler: $e')));
       }
     }
   }
@@ -346,7 +470,7 @@ class _HomeScreenState extends State<HomeScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Maßstab festlegen'),
+        title: const Text('Maßstab festlegen (Sensor)'),
         content: TextField(
           controller: controller,
           keyboardType: TextInputType.number,
@@ -388,6 +512,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _showProjectInfoDialog() {
     final pController = TextEditingController(text: _projectName);
     final sController = TextEditingController(text: _surveyorName);
+    final dateController = TextEditingController(text: _projectDate);
     final dController = TextEditingController(text: _usedDevices);
     final nController = TextEditingController(text: _additionalNotes);
 
@@ -406,6 +531,10 @@ class _HomeScreenState extends State<HomeScreen> {
               TextField(
                 controller: sController,
                 decoration: const InputDecoration(labelText: 'Prüfer / Person'),
+              ),
+              TextField(
+                controller: dateController,
+                decoration: const InputDecoration(labelText: 'Datum / Uhrzeit'),
               ),
               TextField(
                 controller: dController,
@@ -433,6 +562,7 @@ class _HomeScreenState extends State<HomeScreen> {
               setState(() {
                 _projectName = pController.text;
                 _surveyorName = sController.text;
+                _projectDate = dateController.text;
                 _usedDevices = dController.text;
                 _additionalNotes = nController.text;
               });
@@ -521,6 +651,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final valueController = TextEditingController(
       text: marker.sensorValue?.toString() ?? '',
     );
+    final calibratedLightValue = _currentLightValue != null
+        ? _currentLightValue! * _lightCalibrationFactor
+        : null;
     final heightController = TextEditingController(
       text: marker.height.toString(),
     );
@@ -547,21 +680,35 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             TextField(
-              controller: valueController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Sensorwert (Lux)'),
+              controller: valueController, // Keep this for manual input
+              keyboardType: TextInputType.number, // Allow manual input
+              decoration: InputDecoration(labelText: 'Sensorwert (Lux)'),
             ),
             const SizedBox(height: 10),
             ElevatedButton.icon(
               onPressed: () {
-                // Simulation eines Sensor-Events
-                setState(() {
-                  valueController.text = (Random().nextDouble() * 500 + 100)
-                      .toStringAsFixed(1);
-                });
+                if (calibratedLightValue != null) {
+                  setState(() {
+                    valueController.text = calibratedLightValue.toStringAsFixed(
+                      1,
+                    );
+                  });
+                } else {
+                  // Fallback Simulation falls kein Sensor vorhanden (z.B. Emulator/Web)
+                  setState(() {
+                    valueController.text = (Random().nextDouble() * 500 + 100)
+                        .toStringAsFixed(1);
+                  });
+                }
               },
-              icon: const Icon(Icons.bluetooth_connected),
-              label: const Text('Sensorwert abfragen'),
+              icon: calibratedLightValue != null
+                  ? const Icon(Icons.sensors, color: Colors.green)
+                  : const Icon(Icons.sensors_off),
+              label: Text(
+                calibratedLightValue != null
+                    ? 'Sensorwert übernehmen (${calibratedLightValue.toStringAsFixed(1)} lx)'
+                    : 'Sensor simulieren',
+              ),
             ),
           ],
         ),
@@ -569,6 +716,18 @@ class _HomeScreenState extends State<HomeScreen> {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Abbrechen'),
+          ),
+          TextButton(
+            onPressed: () {
+              setState(() {
+                _currentPoints.removeAt(index);
+              });
+              Navigator.pop(context);
+            },
+            child: const Text(
+              'Marker löschen',
+              style: TextStyle(color: Colors.red),
+            ),
           ),
           if (_areas.length > 1)
             TextButton(
@@ -588,6 +747,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ElevatedButton(
                         onPressed: () {
                           setState(() {
+                            // Delete area
                             _areas.removeAt(_selectedAreaIndex);
                             _selectedAreaIndex = 0;
                           });
@@ -608,9 +768,13 @@ class _HomeScreenState extends State<HomeScreen> {
           ElevatedButton(
             onPressed: () {
               setState(() {
-                marker.label = labelController.text;
-                marker.height = double.tryParse(heightController.text) ?? 0.8;
-                marker.sensorValue = double.tryParse(valueController.text);
+                marker.label = labelController.text; // Update label
+                marker.sensorValue = double.tryParse(
+                  valueController.text,
+                ); // Update sensor value
+                marker.height =
+                    double.tryParse(heightController.text) ??
+                    0.8; // Update height
               });
               Navigator.pop(context);
             },
@@ -628,131 +792,207 @@ class _HomeScreenState extends State<HomeScreen> {
     bool hasAnyPoints = _areas.any((area) => area.markers.isNotEmpty);
     if (!hasAnyPoints) return;
 
-    final pdf = pw.Document();
-    final image = pw.MemoryImage(_pdfBytes!);
+    setState(() => _isExportingPdf = true);
+    // Kurze Verzögerung, damit das UI Zeit hat, den Ladekreis zu zeichnen
+    await Future.delayed(const Duration(milliseconds: 100));
 
-    // Seite 1: Grundriss mit Overlays
-    pdf.addPage(
-      pw.Page(
-        pageFormat: PdfPageFormat.a4,
-        orientation: _pdfSize!.width > _pdfSize!.height
-            ? pw.PageOrientation.landscape
-            : pw.PageOrientation.portrait,
-        build: (pw.Context context) {
-          return pw.FittedBox(
-            fit: pw.BoxFit.contain,
-            child: pw.SizedBox(
-              width: _pdfSize!.width,
-              height: _pdfSize!.height,
-              child: pw.Stack(
-                children: [
-                  pw.Image(image),
-                  // Draw points for ALL areas on the plan, perhaps with different colors or just labels
-                  ..._areas.expand((area) => area.markers).map((marker) {
-                    return pw.Positioned(
-                      left: marker.position.dx - (_markerSize / 2),
-                      top: marker.position.dy - _markerSize,
-                      child: pw.Column(
-                        mainAxisSize: pw.MainAxisSize.min,
-                        children: [
-                          pw.Text(
-                            area.name,
-                            style: pw.TextStyle(
-                              fontSize: _markerSize * 0.3,
-                              color: PdfColors.grey700,
-                            ),
-                          ),
-                          pw.Text(
-                            marker.label.isNotEmpty
-                                ? marker.label
-                                : '${markerIndex + 1}',
-                            style: pw.TextStyle(
-                              fontSize: _markerSize * 0.5,
-                              color: PdfColors.red,
-                              fontWeight: pw.FontWeight.bold,
-                            ),
-                          ),
-                          if (marker.sensorValue != null)
-                            pw.Text(
-                              '${marker.sensorValue} lx',
-                              style: pw.TextStyle(
-                                fontSize: _markerSize * 0.5,
-                                color: PdfColors.green,
-                              ),
-                            ),
-                          pw.Container(
-                            width: _markerSize * 0.5,
-                            height: _markerSize * 0.5,
-                            decoration: const pw.BoxDecoration(
-                              color: PdfColors.red,
-                              shape: pw.BoxShape.circle,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }),
-                ],
+    try {
+      final pdf = pw.Document();
+      final image = pw.MemoryImage(_pdfBytes!);
+      final pw.MemoryImage? logoImage = _logoBytes != null
+          ? pw.MemoryImage(_logoBytes!)
+          : null;
+
+      pw.Widget buildPdfHeader() {
+        return pw.Container(
+          margin: const pw.EdgeInsets.only(bottom: 10),
+          child: pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: pw.CrossAxisAlignment.center,
+            children: [
+              if (logoImage != null)
+                pw.Container(height: 40, child: pw.Image(logoImage))
+              else
+                pw.Text(
+                  'By OvW',
+                  style: pw.TextStyle(fontSize: 12, color: PdfColors.grey),
+                ),
+              pw.Text(
+                'Lightmeter Pro Report',
+                style: pw.TextStyle(fontSize: 10, color: PdfColors.grey),
               ),
-            ),
-          );
-        },
-      ),
-    );
+            ],
+          ),
+        );
+      }
 
-    // Helper for PDF Stat Cards
-    pw.Widget buildPdfStatCard(String title, String value, PdfColor color) {
-      return pw.Container(
-        width: 160,
-        padding: const pw.EdgeInsets.all(10),
-        decoration: pw.BoxDecoration(
-          color: color,
-          borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
-        ),
-        child: pw.Column(
-          children: [
-            pw.Text(
-              title,
-              style: pw.TextStyle(color: PdfColors.white, fontSize: 10),
-            ),
-            pw.SizedBox(height: 4),
-            pw.Text(
-              value,
-              style: pw.TextStyle(
-                color: PdfColors.white,
-                fontWeight: pw.FontWeight.bold,
-                fontSize: 14,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // Add Pages per Area
-    for (var area in _areas) {
-      if (area.markers.isEmpty) continue;
-
-      final sensorValues = area.markers
-          .map((m) => m.sensorValue)
-          .whereType<double>()
-          .toList();
-      final double? minVal = sensorValues.isEmpty
-          ? null
-          : sensorValues.reduce(min);
-      final double? maxVal = sensorValues.isEmpty
-          ? null
-          : sensorValues.reduce(max);
-      final double? meanVal = sensorValues.isEmpty
-          ? null
-          : sensorValues.reduce((a, b) => a + b) / sensorValues.length;
-
+      // Seite 1: Grundriss mit Overlays
       pdf.addPage(
         pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          orientation: _pdfSize!.width > _pdfSize!.height
+              ? pw.PageOrientation.landscape
+              : pw.PageOrientation.portrait,
           build: (pw.Context context) {
-            return pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
+            return pw.FittedBox(
+              fit: pw.BoxFit.contain,
+              child: pw.SizedBox(
+                width: _pdfSize!.width,
+                height: _pdfSize!.height,
+                child: pw.Stack(
+                  children: [
+                    pw.Image(image),
+                    // Referenzpunkt (Nullpunkt) auf dem Plan einzeichnen
+                    if (_referencePoint != Offset.zero)
+                      pw.Positioned(
+                        left: _referencePoint.dx - (_markerSize / 2),
+                        top: _referencePoint.dy - (_markerSize / 2),
+                        child: pw.SizedBox(
+                          width: _markerSize,
+                          height: _markerSize,
+                          child: pw.Stack(
+                            children: [
+                              pw.Center(
+                                child: pw.Container(
+                                  width: _markerSize,
+                                  height: 2,
+                                  color: PdfColors.blue,
+                                ),
+                              ),
+                              pw.Center(
+                                child: pw.Container(
+                                  width: 2,
+                                  height: _markerSize,
+                                  color: PdfColors.blue,
+                                ),
+                              ),
+                              pw.Positioned(
+                                left: _markerSize * 0.6,
+                                top: _markerSize * 0.6,
+                                child: pw.Text(
+                                  'REF',
+                                  style: pw.TextStyle(
+                                    color: PdfColors.blue,
+                                    fontWeight: pw.FontWeight.bold,
+                                    fontSize: _markerSize * 0.4,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    // Alle Marker zeichnen
+                    ..._areas
+                        .map((area) {
+                          return area.markers.asMap().entries.map((entry) {
+                            final int markerIndex = entry.key;
+                            final MeasurementMarker marker = entry.value;
+                            return pw.Positioned(
+                              left: marker.position.dx - (_markerSize / 2),
+                              top: marker.position.dy - _markerSize,
+                              child: pw.Column(
+                                mainAxisSize: pw.MainAxisSize.min,
+                                children: [
+                                  pw.Text(
+                                    area.name,
+                                    style: pw.TextStyle(
+                                      fontSize: _markerSize * 0.3,
+                                      color: PdfColors.grey700,
+                                    ),
+                                  ),
+                                  pw.Text(
+                                    marker.label.isNotEmpty
+                                        ? marker.label
+                                        : '${markerIndex + 1}',
+                                    style: pw.TextStyle(
+                                      fontSize: _markerSize * 0.5,
+                                      color: PdfColors.red,
+                                      fontWeight: pw.FontWeight.bold,
+                                    ),
+                                  ),
+                                  if (marker.sensorValue != null)
+                                    pw.Text(
+                                      '${marker.sensorValue} lx',
+                                      style: pw.TextStyle(
+                                        fontSize: _markerSize * 0.5,
+                                        color: PdfColors.green,
+                                      ),
+                                    ),
+                                  pw.Container(
+                                    width: _markerSize * 0.5,
+                                    height: _markerSize * 0.5,
+                                    decoration: const pw.BoxDecoration(
+                                      color: PdfColors.red,
+                                      shape: pw.BoxShape.circle,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList();
+                        })
+                        .expand((element) => element),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      );
+
+      // Helper for PDF Stat Cards
+      pw.Widget buildPdfStatCard(String title, String value, PdfColor color) {
+        return pw.Container(
+          width: 160,
+          padding: const pw.EdgeInsets.all(10),
+          decoration: pw.BoxDecoration(
+            color: color,
+            borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
+          ),
+          child: pw.Column(
+            children: [
+              pw.Text(
+                title,
+                style: pw.TextStyle(color: PdfColors.white, fontSize: 10),
+              ),
+              pw.SizedBox(height: 4),
+              pw.Text(
+                value,
+                style: pw.TextStyle(
+                  color: PdfColors.white,
+                  fontWeight: pw.FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      // Add Pages per Area
+      for (var area in _areas) {
+        if (area.markers.isEmpty) continue;
+
+        final sensorValues = area.markers
+            .map((m) => m.sensorValue)
+            .whereType<double>()
+            .toList();
+        final double? minVal = sensorValues.isEmpty
+            ? null
+            : sensorValues.reduce(min);
+        final double? maxVal = sensorValues.isEmpty
+            ? null
+            : sensorValues.reduce(max);
+        final double? meanVal = sensorValues.isEmpty
+            ? null
+            : sensorValues.reduce((a, b) => a + b) / sensorValues.length;
+
+        pdf.addPage(
+          pw.MultiPage(
+            build: (pw.Context context) {
+              return [
+                buildPdfHeader(),
                 pw.Text(
                   'Messbericht - Bereich: ${area.name}',
                   style: pw.TextStyle(
@@ -779,7 +1019,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             'Projekt: ${_projectName.isEmpty ? "Unbenannt" : _projectName}',
                             style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
                           ),
-                          pw.Text('Datum/Zeit: ${_getFormattedDateTime()}'),
+                          pw.Text('Datum/Zeit: $_projectDate'),
                         ],
                       ),
                       pw.Divider(color: PdfColors.grey300),
@@ -863,12 +1103,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                   data: area.markers.asMap().entries.map((e) {
                     final m = e.value;
-                    final x = (m.position.dx / _pixelsPerMeter).toStringAsFixed(
-                      2,
-                    );
-                    final y = (m.position.dy / _pixelsPerMeter).toStringAsFixed(
-                      2,
-                    );
+                    final x =
+                        ((m.position.dx - _referencePoint.dx) / _pixelsPerMeter)
+                            .toStringAsFixed(2);
+                    final y =
+                        ((_referencePoint.dy - m.position.dy) / _pixelsPerMeter)
+                            .toStringAsFixed(2);
                     return [
                       '${e.key + 1}',
                       m.label,
@@ -878,16 +1118,19 @@ class _HomeScreenState extends State<HomeScreen> {
                     ];
                   }).toList(),
                 ),
-              ],
-            );
-          },
-        ),
+              ];
+            },
+          ),
+        );
+      }
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => pdf.save(),
       );
+    } catch (e) {
+      debugPrint('Export Error: $e');
+    } finally {
+      setState(() => _isExportingPdf = false);
     }
-
-    await Printing.layoutPdf(
-      onLayout: (PdfPageFormat format) async => pdf.save(),
-    );
   }
 
   Offset _snapToGridOffset(Offset pos) {
@@ -907,6 +1150,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final Map<String, dynamic> projectData = {
         'projectName': _projectName,
         'surveyorName': _surveyorName,
+        'projectDate': _projectDate,
         'usedDevices': _usedDevices,
         'additionalNotes': _additionalNotes,
         'pixelsPerMeter': _pixelsPerMeter,
@@ -916,9 +1160,16 @@ class _HomeScreenState extends State<HomeScreen> {
         'gridOffsetY': _gridOffset.dy,
         'snapToGrid': _snapToGrid,
         'markerSize': _markerSize,
+        'lightCalibrationFactor': _lightCalibrationFactor,
+        'currentLightValue': _currentLightValue,
+        'refPointX': _referencePoint.dx,
+        'refPointY': _referencePoint.dy,
         'pdfSizeWidth': _pdfSize?.width,
         'pdfSizeHeight': _pdfSize?.height,
         'pdfBytesBase64': base64Encode(_pdfBytes!),
+        'logoBytesBase64': _logoBytes != null
+            ? base64Encode(_logoBytes!)
+            : null,
         'areas': _areas.map((a) => a.toJson()).toList(),
       };
 
@@ -956,6 +1207,7 @@ class _HomeScreenState extends State<HomeScreen> {
           setState(() {
             _projectName = data['projectName'] ?? '';
             _surveyorName = data['surveyorName'] ?? '';
+            _projectDate = data['projectDate'] ?? _getFormattedDateTime();
             _usedDevices = data['usedDevices'] ?? '';
             _additionalNotes = data['additionalNotes'] ?? '';
             _pixelsPerMeter = data['pixelsPerMeter'] ?? 100.0;
@@ -966,7 +1218,16 @@ class _HomeScreenState extends State<HomeScreen> {
               (data['gridOffsetY'] as num? ?? 0.0).toDouble(),
             );
             _snapToGrid = data['snapToGrid'] ?? false;
+            _lightCalibrationFactor = data['lightCalibrationFactor'] ?? 1.0;
+            _currentLightValue = data['currentLightValue'];
             _markerSize = data['markerSize'] ?? 24.0;
+            _logoBytes = data['logoBytesBase64'] != null
+                ? base64Decode(data['logoBytesBase64'])
+                : null;
+            _referencePoint = Offset(
+              (data['refPointX'] as num? ?? 0.0).toDouble(),
+              (data['refPointY'] as num? ?? 0.0).toDouble(),
+            );
             _pdfSize = Size(data['pdfSizeWidth'], data['pdfSizeHeight']);
             _pdfBytes = base64Decode(data['pdfBytesBase64']);
             _areas.clear();
@@ -987,21 +1248,11 @@ class _HomeScreenState extends State<HomeScreen> {
   void _cancelCalibration() {
     setState(() {
       _isCalibrating = false;
+      _isSettingReferencePoint = false;
       _calibrationStart = null;
       _calibrationEnd = null;
       _currentMousePosition = null;
     });
-  }
-
-  Offset _transformOffset(Offset viewportOffset) {
-    final matrix = _transformationController.value;
-    final translation = matrix.getTranslation();
-    final scale = matrix.getMaxScaleOnAxis();
-
-    return Offset(
-      (viewportOffset.dx - translation.x) / scale,
-      (viewportOffset.dy - translation.y) / scale,
-    );
   }
 
   @override
@@ -1010,20 +1261,6 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('Lightmeter Pro'),
         actions: [
-          if (_isLoading)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16.0),
-                child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                  ),
-                ),
-              ),
-            ),
           IconButton(
             icon: Icon(
               Icons.straighten,
@@ -1038,6 +1275,28 @@ class _HomeScreenState extends State<HomeScreen> {
               });
             },
             tooltip: 'Kalibrieren',
+          ),
+          IconButton(
+            icon: Icon(
+              Icons.api,
+              color: _isSettingReferencePoint ? Colors.blue : null,
+            ),
+            onPressed: () {
+              setState(() {
+                _isSettingReferencePoint = !_isSettingReferencePoint;
+                _isCalibrating = false;
+                if (_isSettingReferencePoint) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Klicken Sie auf den gewünschten Nullpunkt (z.B. unten links).',
+                      ),
+                    ),
+                  );
+                }
+              });
+            },
+            tooltip: 'Referenzpunkt setzen',
           ),
           if (_isCalibrating)
             IconButton(
@@ -1065,6 +1324,30 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: () => context.read<ThemeProvider>().toggleTheme(),
             tooltip: 'Theme umschalten',
           ),
+          IconButton(
+            icon: const Icon(Icons.lightbulb_outline),
+            onPressed: () =>
+                setState(() => _showSensorSheet = !_showSensorSheet),
+            tooltip: 'Sensorwerte anzeigen',
+          ),
+          IconButton(
+            icon: const Icon(Icons.volunteer_activism, color: Colors.redAccent),
+            onPressed: () async {
+              final Uri url = Uri.parse(
+                'https://www.paypal.com/donate/?hosted_button_id=6S6AF2MLFZTEA',
+              );
+              if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Konnte PayPal Link nicht öffnen'),
+                    ),
+                  );
+                }
+              }
+            },
+            tooltip: 'Spenden via PayPal',
+          ),
         ],
       ),
       drawer: Drawer(
@@ -1080,14 +1363,31 @@ class _HomeScreenState extends State<HomeScreen> {
             ListTile(
               leading: const Icon(Icons.file_open),
               title: const Text('Projekt laden'),
+              subtitle: const Text('Gespeichertes Projekt öffnen'),
               onTap: () {
                 Navigator.pop(context);
                 _loadProject();
               },
             ),
             ListTile(
+              leading: const Icon(Icons.add_photo_alternate),
+              title: const Text('Logo hochladen'),
+              trailing: _logoBytes != null
+                  ? Image.memory(_logoBytes!, height: 30)
+                  : const Text(
+                      'By OvW',
+                      style: TextStyle(color: Colors.grey, fontSize: 10),
+                    ),
+              subtitle: const Text('Erscheint im PDF-Kopf'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickLogo();
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.save),
               title: const Text('Projekt speichern'),
+              subtitle: const Text('Aktuellen Stand sichern'),
               onTap: () {
                 Navigator.pop(context);
                 _saveProject();
@@ -1096,6 +1396,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ListTile(
               leading: const Icon(Icons.info_outline),
               title: const Text('Projekt-Infos bearbeiten'),
+              subtitle: const Text('Name, Messgerät, Notizen'),
               onTap: () {
                 Navigator.pop(context);
                 _showProjectInfoDialog();
@@ -1115,6 +1416,49 @@ class _HomeScreenState extends State<HomeScreen> {
               onTap: () {
                 Navigator.pop(context);
                 _confirmReset();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.info_outline),
+              title: const Text('Info'),
+              onTap: () {
+                Navigator.pop(context);
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Info'),
+                    content: const Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Lightmeter Pro',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        Text('Made by OvW'),
+                        Text('Version: 0.5'),
+                      ],
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Schließen'),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.sensors),
+              title: const Text('Sensorkalibrierung'),
+              onTap: () {
+                Navigator.pop(context);
+                setState(() => _showSensorSheet = true);
               },
             ),
             const Divider(),
@@ -1177,6 +1521,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   });
                 },
               ),
+              ListTile(
+                leading: const Icon(Icons.gps_fixed),
+                title: const Text('Referenzpunkt zurücksetzen'),
+                onTap: () {
+                  setState(() => _referencePoint = Offset.zero);
+                  Navigator.pop(context);
+                },
+              ),
             ],
             const Divider(),
             ListTile(
@@ -1197,9 +1549,16 @@ class _HomeScreenState extends State<HomeScreen> {
           if (_pdfBytes != null)
             Container(
               height: 50,
-              color: Theme.of(context).primaryColor.withOpacity(0.1),
+              color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
               child: Row(
                 children: [
+                  const Padding(
+                    padding: EdgeInsets.only(left: 16, right: 8),
+                    child: Text(
+                      'Bereiche :',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
                   Expanded(
                     child: ListView.builder(
                       scrollDirection: Axis.horizontal,
@@ -1233,23 +1592,26 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           Expanded(
-            child: _pdfBytes == null
-                ? Center(
+            child: Stack(
+              children: [
+                if (_pdfBytes == null)
+                  Center(
                     child: ElevatedButton(
                       onPressed: _pickPdf,
                       child: const Text('PDF Grundriss laden'),
                     ),
                   )
-                : LayoutBuilder(
+                else
+                  LayoutBuilder(
                     // New: Use LayoutBuilder to get the available size for the PDF
                     builder: (context, constraints) {
                       // Update _viewportSize whenever the layout changes
                       WidgetsBinding.instance.addPostFrameCallback((_) {
                         if (_viewportSize != constraints.biggest) {
                           setState(() {
-                            _viewportSize = constraints.biggest;
-                            // Optionally refit the PDF if viewport changes significantly
-                            // _fitPdfToScreen();
+                            _viewportSize =
+                                constraints.biggest; // Update viewport size
+                            _fitPdfToScreen(); // Refit PDF to new viewport size
                           });
                         }
                       });
@@ -1269,7 +1631,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               // The actual PDF Image
                               Image.memory(
                                 _pdfBytes!,
-                                fit: BoxFit.none,
+                                fit: BoxFit.contain,
                                 alignment: Alignment.topLeft,
                               ),
                               // Hilfsraster
@@ -1316,6 +1678,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                         );
                                         _showCalibrationDialog();
                                       }
+                                    } else if (_isSettingReferencePoint) {
+                                      setState(() {
+                                        _referencePoint = position;
+                                        _isSettingReferencePoint = false;
+                                      });
                                     } else {
                                       setState(() {
                                         _currentPoints.add(
@@ -1345,6 +1712,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                         currentMousePosition:
                                             _currentMousePosition,
                                         isCalibrating: _isCalibrating,
+                                        referencePoint: _referencePoint,
+                                        isSettingReferencePoint:
+                                            _isSettingReferencePoint,
                                         controller: _transformationController,
                                       ),
                                     ),
@@ -1464,134 +1834,187 @@ class _HomeScreenState extends State<HomeScreen> {
                       );
                     },
                   ),
+                if (_isLoading || _isExportingPdf)
+                  Container(
+                    color: Colors.black26,
+                    child: const Center(child: CircularProgressIndicator()),
+                  ),
+              ],
+            ),
           ),
         ],
       ),
-      bottomSheet: _currentPoints.isNotEmpty
+      bottomSheet: _showSensorSheet
           ? Container(
-              height: 120,
-              color: Theme.of(context).cardColor,
-              child: ListView.builder(
-                itemCount: _currentPoints.length,
-                itemBuilder: (context, index) {
-                  final marker = _currentPoints[index];
-                  double realX = marker.position.dx / _pixelsPerMeter;
-                  double realY = marker.position.dy / _pixelsPerMeter;
-                  return ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: Theme.of(context).primaryColor,
-                      child: Text(
-                        '${index + 1}',
-                        style: const TextStyle(color: Colors.white),
+              height: 200,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black26,
+                    blurRadius: 10,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Sensorkalibrierung',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                    title: Text(
-                      '${_areas[_selectedAreaIndex].name} - ${marker.label.isNotEmpty ? marker.label : index + 1} (h: ${marker.height}m)',
-                    ),
-                    subtitle: Text(
-                      'Pos: ${realX.toStringAsFixed(2)}m / ${realY.toStringAsFixed(2)}m ${marker.sensorValue != null ? "| Wert: ${marker.sensorValue} Lux" : ""}',
-                    ),
-                    onTap: () => _editMarkerData(index),
-                  );
-                },
+                      // Status-Anzeige für den Sensor
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _hasHardwareSensor
+                              ? Colors.green.withOpacity(0.1)
+                              : Colors.orange.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: _hasHardwareSensor
+                                ? Colors.green
+                                : Colors.orange,
+                            width: 1,
+                          ),
+                        ),
+                        child: Text(
+                          _hasHardwareSensor
+                              ? 'Hardware-Sensor aktiv'
+                              : 'Simulations-Modus',
+                          style: TextStyle(
+                            color: _hasHardwareSensor
+                                ? Colors.green
+                                : Colors.orange,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      if (kIsWeb)
+                        IconButton(
+                          icon: Icon(
+                            _btDevice != null
+                                ? Icons.bluetooth_connected
+                                : Icons.bluetooth,
+                            color: _btDevice != null ? Colors.blue : null,
+                          ),
+                          onPressed: _isBluetoothConnecting
+                              ? null
+                              : _connectExternalSensor,
+                          tooltip: 'Externen Bluetooth-Sensor verbinden',
+                        ),
+                      if (!_hasHardwareSensor && !kIsWeb && Platform.isAndroid)
+                        IconButton(
+                          icon: const Icon(Icons.refresh, size: 20),
+                          tooltip: 'Sensor erneut suchen',
+                          onPressed: _initLightSensor,
+                        ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () =>
+                            setState(() => _showSensorSheet = false),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      const Icon(Icons.lightbulb, color: Colors.orange),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _hasHardwareSensor && _currentLightValue == null
+                              ? 'Warte auf Sensordaten...'
+                              : 'Aktueller Wert: ${_currentLightValue?.toStringAsFixed(1) ?? "---"} lx',
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                      ),
+                      Text(
+                        _currentDistanceValue != null
+                            ? 'Distanz: ${_currentDistanceValue!.toStringAsFixed(0)} cm'
+                            : '',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Theme.of(context).hintColor,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        'Kalibriert: ${(_currentLightValue != null ? (_currentLightValue! * _lightCalibrationFactor) : 0.0).toStringAsFixed(1)} lx',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      const Text('Faktor: '),
+                      Expanded(
+                        child: Slider(
+                          value: _lightCalibrationFactor,
+                          min: 0.1,
+                          max: 5.0,
+                          divisions: 49,
+                          label: _lightCalibrationFactor.toStringAsFixed(2),
+                          onChanged: (val) =>
+                              setState(() => _lightCalibrationFactor = val),
+                        ),
+                      ),
+                      Text(_lightCalibrationFactor.toStringAsFixed(2)),
+                    ],
+                  ),
+                ],
               ),
             )
-          : null,
+          : (_currentPoints.isNotEmpty
+                ? Container(
+                    height: 120,
+                    color: Theme.of(context).cardColor,
+                    child: ListView.builder(
+                      itemCount: _currentPoints.length,
+                      itemBuilder: (context, index) {
+                        final marker = _currentPoints[index];
+                        double realX =
+                            (marker.position.dx - _referencePoint.dx) /
+                            _pixelsPerMeter;
+                        double realY =
+                            (_referencePoint.dy - marker.position.dy) /
+                            _pixelsPerMeter;
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: Theme.of(context).primaryColor,
+                            child: Text(
+                              '${index + 1}',
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                          ),
+                          title: Text(
+                            '${_areas[_selectedAreaIndex].name} - ${marker.label.isNotEmpty ? marker.label : index + 1} (h: ${marker.height}m)',
+                          ),
+                          subtitle: Text(
+                            'Pos: ${realX.toStringAsFixed(2)}m / ${realY.toStringAsFixed(2)}m ${marker.sensorValue != null ? "| Wert: ${marker.sensorValue} Lux" : ""}',
+                          ),
+                          onTap: () => _editMarkerData(index),
+                        );
+                      },
+                    ),
+                  )
+                : null),
     );
   }
-}
-
-class GridPainter extends CustomPainter {
-  final double gridSizeX;
-  final double gridSizeY;
-  final Offset offset;
-  final Size pdfSize;
-  final TransformationController controller;
-
-  GridPainter({
-    required this.gridSizeX,
-    required this.gridSizeY,
-    required this.offset,
-    required this.pdfSize,
-    required this.controller,
-  }) : super(repaint: controller);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final scale = controller.value.getMaxScaleOnAxis();
-    final paint = Paint()
-      ..color = Colors.green.withOpacity(0.5)
-      ..strokeWidth = 1.2 / scale;
-
-    // Vertikale Linien
-    double startX = gridSizeX > 0 ? (offset.dx % gridSizeX) : 0;
-    if (startX > 0) startX -= gridSizeX;
-    for (double x = startX; x <= pdfSize.width; x += gridSizeX) {
-      canvas.drawLine(Offset(x, 0), Offset(x, pdfSize.height), paint);
-    }
-
-    // Horizontale Linien
-    double startY = gridSizeY > 0 ? (offset.dy % gridSizeY) : 0;
-    if (startY > 0) startY -= gridSizeY;
-    for (double y = startY; y <= pdfSize.height; y += gridSizeY) {
-      canvas.drawLine(Offset(0, y), Offset(pdfSize.width, y), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(GridPainter oldDelegate) =>
-      oldDelegate.gridSizeX != gridSizeX ||
-      oldDelegate.gridSizeY != gridSizeY ||
-      oldDelegate.offset != offset ||
-      oldDelegate.pdfSize != pdfSize ||
-      oldDelegate.controller != controller;
-}
-
-class MeasurementPainter extends CustomPainter {
-  final Offset? calibrationStart;
-  final Offset? calibrationEnd;
-  final Offset? currentMousePosition;
-  final bool isCalibrating;
-  final TransformationController controller;
-
-  MeasurementPainter({
-    this.calibrationStart,
-    this.calibrationEnd,
-    this.currentMousePosition,
-    required this.isCalibrating,
-    required this.controller,
-  }) : super(repaint: controller);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (!isCalibrating) return; // Only paint during calibration
-
-    final scale = controller.value.getMaxScaleOnAxis();
-
-    if (calibrationStart != null) {
-      final paint = Paint()
-        ..color = Colors.orange
-        ..strokeWidth = 3 / scale
-        ..style = PaintingStyle.stroke;
-
-      final start = calibrationStart!;
-      final end = calibrationEnd ?? currentMousePosition ?? start;
-
-      // Zeichne Gummiband-Linie
-      canvas.drawLine(start, end, paint);
-
-      // Zeichne Start- und Endpunkte
-      paint.style = PaintingStyle.fill;
-      canvas.drawCircle(start, 6 / scale, paint);
-      canvas.drawCircle(end, 6 / scale, paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant MeasurementPainter oldDelegate) =>
-      calibrationStart != oldDelegate.calibrationStart ||
-      calibrationEnd != oldDelegate.calibrationEnd ||
-      currentMousePosition != oldDelegate.currentMousePosition ||
-      isCalibrating != oldDelegate.isCalibrating ||
-      controller != oldDelegate.controller;
 }

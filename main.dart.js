@@ -110041,21 +110041,21 @@ h.push(B.iE(i,i,A.VR,i,i,new B.aAC(a),i,i,"Theme umschalten"))
 h.push(B.iE(i,i,A.VK,i,i,new B.aAN(j),i,i,"Sensorwerte anzeigen"))
 h.push(B.iE(i,i,A.VY,i,i,new B.aAT(a),i,i,"Spenden via PayPal"))
 r=B.W(a)
-q=B.i1(!1,i,i,i,!0,i,i,i,!0,i,A.VW,i,i,i,i,new B.aAU(j,a),!1,i,i,i,A.aZb,i,A.aZn,i,i)
+q=B.i1(!1,i,i,i,!0,i,i,i,!0,i,A.VW,i,i,i,i,new B.aAU(j,a),!1,i,i,i,A.aZa,i,A.aZm,i,i)
 p=j.p1
-p=p!=null?B.aPV(p,A.aF,i,30):A.aZg
-p=B.b([new B.Qa(new B.ef(r.dx,i,i,i,i,i,A.bN),A.aZ5,i),q,B.i1(!1,i,i,i,!0,i,i,i,!0,i,A.W_,i,i,i,i,new B.aAV(j,a),!1,i,i,i,A.aZL,i,A.aZd,p,i),B.i1(!1,i,i,i,!0,i,i,i,!0,i,A.VS,i,i,i,i,new B.aAW(j,a),!1,i,i,i,A.aZF,i,A.aZ3,i,i),B.i1(!1,i,i,i,!0,i,i,i,!0,i,A.vQ,i,i,i,i,new B.aAX(j,a),!1,i,i,i,A.aZA,i,A.aZi,i,i),B.i1(!1,i,i,i,!0,i,i,i,!0,i,A.VT,i,i,i,i,new B.aAY(j,a),!1,i,i,i,i,i,A.aZC,i,i),B.i1(!1,i,i,i,!0,i,i,i,!0,i,A.VI,i,i,i,i,new B.aAZ(j,a),!1,i,i,i,i,i,A.aZc,i,i),B.i1(!1,i,i,i,!0,i,i,i,!0,i,A.vQ,i,i,i,i,new B.aAD(a),!1,i,i,i,i,i,A.N4,i,i),B.i1(!1,i,i,i,!0,i,i,i,!0,i,A.VP,i,i,i,i,new B.aAE(j,a),!1,i,i,i,i,i,A.aZv,i,i),A.v6,new B.cg(A.Ua,B.cU("Hilfsraster",i,i,i,B.W(a).ok.x,i,i),i),B.aLx(new B.aAF(j),A.VZ,i,A.aZw,j.db)],g)
-if(j.db){r=B.aLx(new B.aAG(j),A.W0,i,A.aZa,j.dx)
+p=p!=null?B.aPV(p,A.aF,i,30):A.aZf
+p=B.b([new B.Qa(new B.ef(r.dx,i,i,i,i,i,A.bN),A.aZ4,i),q,B.i1(!1,i,i,i,!0,i,i,i,!0,i,A.W_,i,i,i,i,new B.aAV(j,a),!1,i,i,i,A.aZK,i,A.aZc,p,i),B.i1(!1,i,i,i,!0,i,i,i,!0,i,A.VS,i,i,i,i,new B.aAW(j,a),!1,i,i,i,A.aZE,i,A.aZ2,i,i),B.i1(!1,i,i,i,!0,i,i,i,!0,i,A.vQ,i,i,i,i,new B.aAX(j,a),!1,i,i,i,A.aZz,i,A.aZh,i,i),B.i1(!1,i,i,i,!0,i,i,i,!0,i,A.VT,i,i,i,i,new B.aAY(j,a),!1,i,i,i,i,i,A.aZB,i,i),B.i1(!1,i,i,i,!0,i,i,i,!0,i,A.VI,i,i,i,i,new B.aAZ(j,a),!1,i,i,i,i,i,A.aZb,i,i),B.i1(!1,i,i,i,!0,i,i,i,!0,i,A.vQ,i,i,i,i,new B.aAD(a),!1,i,i,i,i,i,A.N4,i,i),B.i1(!1,i,i,i,!0,i,i,i,!0,i,A.VP,i,i,i,i,new B.aAE(j,a),!1,i,i,i,i,i,A.aZu,i,i),A.v6,new B.cg(A.Ua,B.cU("Hilfsraster",i,i,i,B.W(a).ok.x,i,i),i),B.aLx(new B.aAF(j),A.VZ,i,A.aZv,j.db)],g)
+if(j.db){r=B.aLx(new B.aAG(j),A.W0,i,A.aZ9,j.dx)
 q=B.cU("X-Raster: "+A.m.ae(j.dy,1)+" m",i,i,i,i,i,i)
 q=B.i1(!1,i,i,i,!0,i,i,i,!0,i,i,i,i,i,i,i,!1,i,i,i,B.arz(39,i,20,0.5,new B.aAH(j),j.dy),i,q,i,i)
 o=B.cU("Y-Raster: "+A.m.ae(j.fr,1)+" m",i,i,i,i,i,i)
-A.o.a1(p,B.b([r,q,B.i1(!1,i,i,i,!0,i,i,i,!0,i,i,i,i,i,i,i,!1,i,i,i,B.arz(39,i,20,0.5,new B.aAI(j),j.fr),i,o,i,i),B.aLx(new B.aAJ(j),A.VU,A.aZs,A.aZ8,j.fy),B.i1(!1,i,i,i,!0,i,i,i,!0,i,A.VF,i,i,i,i,new B.aAK(j),!1,i,i,i,i,i,A.aZz,i,i),B.i1(!1,i,i,i,!0,i,i,i,!0,i,A.VE,i,i,i,i,new B.aAL(j,a),!1,i,i,i,i,i,A.aZK,i,i)],g))}p.push(A.v6)
-p.push(B.i1(!1,i,i,i,!0,i,i,i,!0,i,A.VV,i,i,i,i,i,!1,i,i,i,B.arz(i,i,500,12,new B.aAM(j),j.R8),i,A.aZl,i,i))
+A.o.a1(p,B.b([r,q,B.i1(!1,i,i,i,!0,i,i,i,!0,i,i,i,i,i,i,i,!1,i,i,i,B.arz(39,i,20,0.5,new B.aAI(j),j.fr),i,o,i,i),B.aLx(new B.aAJ(j),A.VU,A.aZr,A.aZ7,j.fy),B.i1(!1,i,i,i,!0,i,i,i,!0,i,A.VF,i,i,i,i,new B.aAK(j),!1,i,i,i,i,i,A.aZy,i,i),B.i1(!1,i,i,i,!0,i,i,i,!0,i,A.VE,i,i,i,i,new B.aAL(j,a),!1,i,i,i,i,i,A.aZJ,i,i)],g))}p.push(A.v6)
+p.push(B.i1(!1,i,i,i,!0,i,i,i,!0,i,A.VV,i,i,i,i,i,!1,i,i,i,B.arz(i,i,500,12,new B.aAM(j),j.R8),i,A.aZk,i,i))
 r=B.ahg(p,i,i,A.b5,!1)
 q=B.b([],g)
 if(j.e!=null){p=B.W(a).dx.zr(0.1)
 q.push(B.ja(i,B.jr(B.b([A.aNT,B.wP(B.aQq(new B.aAO(j),j.go.length,A.hL,A.bm),1),B.iE(i,i,A.VG,i,i,j.gar2(),i,i,"Neuen Bereich anlegen")],g),A.aP,A.aW,A.bK,0),A.aa,p,i,i,i,50,i,i,i,i,i))}p=B.b([],g)
-if(j.e==null)p.push(B.mp(B.rc(A.aZk,s),i,i))
+if(j.e==null)p.push(B.mp(B.rc(A.aZj,s),i,i))
 else p.push(B.Sk(new B.aAP(j)))
 if(j.d||j.p2)p.push(B.ja(i,A.R8,A.aa,A.un,i,i,i,i,i,i,i,i,i))
 q.push(B.wP(B.lS(A.d2,p,A.al,A.cZ,i),1))
@@ -110067,7 +110067,7 @@ n=B.oj(12)
 m=j.ax
 l=B.aOk(m?A.dF:A.dE,1)
 k=m?"Hardware-Sensor aktiv":"Simulations-Modus"
-o=B.b([A.aZu,B.ja(i,B.cU(k,i,i,i,B.fQ(i,i,m?A.dF:A.dE,i,i,i,i,i,i,i,i,12,i,i,A.da,i,i,!0,i,i,i,i,i,i,i,i),i,i),A.aa,i,i,new B.ef(o,i,l,n,i,i,A.bN),i,i,i,A.vc,i,i,i)],g)
+o=B.b([A.aZt,B.ja(i,B.cU(k,i,i,i,B.fQ(i,i,m?A.dF:A.dE,i,i,i,i,i,i,i,i,12,i,i,A.da,i,i,!0,i,i,i,i,i,i,i,i),i,i),A.aa,i,i,new B.ef(o,i,l,n,i,i,A.bN),i,i,i,A.vc,i,i,i)],g)
 n=j.ch!=null
 m=n?A.Vg:A.Vf
 m=B.DN(m,n?A.dZ:i,i,i)
@@ -110084,11 +110084,11 @@ m=B.cU(m,i,i,i,B.fQ(i,i,B.W(a).cy,i,i,i,i,i,i,i,i,14,i,i,i,i,i,!0,i,i,i,i,i,i,i,
 l=j.ry
 n=B.jr(B.b([A.VH,A.rz,n,m,A.aTN,B.cU("Kalibriert: "+A.m.ae(l!=null?l*j.to:0,1)+" lx",i,i,i,A.aUV,i,i)],g),A.aP,A.aW,A.bK,0)
 m=j.to
-p=B.ja(i,B.j9(B.b([o,A.my,n,A.my,B.jr(B.b([A.aZB,B.wP(B.arz(49,A.m.ae(m,2),5,0.1,new B.aAR(j),m),1),B.cU(A.m.ae(j.to,2),i,i,i,i,i,i)],g),A.aP,A.aW,A.bK,0)],g),A.aP,A.aW,A.bK),A.aa,i,i,new B.ef(q.at,i,i,i,p,i,A.bN),i,200,i,A.U6,i,i,i)
+p=B.ja(i,B.j9(B.b([o,A.my,n,A.my,B.jr(B.b([A.aZA,B.wP(B.arz(49,A.m.ae(m,2),5,0.1,new B.aAR(j),m),1),B.cU(A.m.ae(j.to,2),i,i,i,i,i,i)],g),A.aP,A.aW,A.bK,0)],g),A.aP,A.aW,A.bK),A.aa,i,i,new B.ef(q.at,i,i,i,p,i,A.bN),i,200,i,A.U6,i,i,i)
 g=p}else{g=j.go
 if(g[j.id].b.length!==0){q=B.W(a)
 q=B.ja(i,B.aQq(new B.aAS(j),g[j.id].b.length,i,A.b5),A.aa,q.at,i,i,i,120,i,i,i,i,i)
-g=q}else g=i}return new B.Gp(new B.Bt(A.aZ6,h,new B.a2r(i,i,1/0,56),i),s,new B.Q6(r,i),g,i)}}
+g=q}else g=i}return new B.Gp(new B.Bt(A.aZ5,h,new B.a2r(i,i,1/0,56),i),s,new B.Q6(r,i),g,i)}}
 B.azV.prototype={
 $0(){return this.a.ax=!1},
 $S:0}
@@ -110115,7 +110115,7 @@ B.azr.prototype={
 $0(){this.a.ax=!0},
 $S:0}
 B.az5.prototype={
-$1(a){return B.oa(B.b([B.jy(A.h2,new B.az3(a),null),B.rc(A.aZ2,new B.az4(a))],t.D),A.aZJ,A.aZE)},
+$1(a){return B.oa(B.b([B.jy(A.h2,new B.az3(a),null),B.rc(A.aZ1,new B.az4(a))],t.D),A.aZI,A.aZD)},
 $S:38}
 B.az3.prototype={
 $0(){B.cR(this.a,!1).e8(!1)
@@ -110187,7 +110187,7 @@ $0(){this.a.p1=this.b},
 $S:0}
 B.azL.prototype={
 $1(a){var s=B.aRW(new B.Ca(B.amL(a,!1,t.eC).b,new B.azJ(a),0.8,null))
-return B.oa(B.b([B.jy(A.N5,new B.azK(a),null)],t.D),s,A.aZf)},
+return B.oa(B.b([B.jy(A.N5,new B.azK(a),null)],t.D),s,A.aZe)},
 $S:38}
 B.azJ.prototype={
 $1(a){var s=B.amL(this.a,!1,t.eC)
@@ -110199,7 +110199,7 @@ $0(){return B.cR(this.a,!1).fW()},
 $S:0}
 B.azI.prototype={
 $1(a){var s=null,r=this.b,q=B.lX(!1,r,A.Wt,s,s,A.rJ,1,s),p=this.a
-return B.oa(B.b([B.jy(A.h2,new B.azG(p,a),s),B.rc(A.N5,new B.azH(p,r,a))],t.D),q,A.aZI)},
+return B.oa(B.b([B.jy(A.h2,new B.azG(p,a),s),B.rc(A.N5,new B.azH(p,r,a))],t.D),q,A.aZH)},
 $S:38}
 B.azG.prototype={
 $0(){var s=this.a
@@ -110230,7 +110230,7 @@ s.k4=s.k3=s.k2=null},
 $S:0}
 B.azP.prototype={
 $1(a){var s=this,r=null,q=s.b,p=s.c,o=s.d,n=s.e,m=s.f,l=t.D,k=B.aRW(B.j9(B.b([B.lX(!1,q,A.Wu,r,r,r,1,r),B.lX(!1,p,A.Wo,r,r,r,1,r),B.lX(!1,o,A.Ws,r,r,r,1,r),B.lX(!1,n,A.Wr,r,r,r,1,r),B.lX(!1,m,A.Wx,r,r,r,3,r)],l),A.aP,A.aW,A.cW))
-return B.oa(B.b([B.jy(A.h2,new B.azN(a),r),B.rc(A.rL,new B.azO(s.a,q,p,o,n,m,a))],l),k,A.aZm)},
+return B.oa(B.b([B.jy(A.h2,new B.azN(a),r),B.rc(A.rL,new B.azO(s.a,q,p,o,n,m,a))],l),k,A.aZl)},
 $S:38}
 B.azN.prototype={
 $0(){B.cR(this.a,!1).e8(null)
@@ -110251,7 +110251,7 @@ r.as=s.f.a.a},
 $S:0}
 B.azD.prototype={
 $1(a){var s=null,r=this.b,q=B.lX(!0,r,A.Wv,s,s,s,1,s)
-return B.oa(B.b([B.jy(A.h2,new B.azB(a),s),B.rc(A.aZp,new B.azC(this.a,r,a))],t.D),q,A.aZx)},
+return B.oa(B.b([B.jy(A.h2,new B.azB(a),s),B.rc(A.aZo,new B.azC(this.a,r,a))],t.D),q,A.aZw)},
 $S:38}
 B.azB.prototype={
 $0(){B.cR(this.a,!1).e8(null)
@@ -110269,7 +110269,7 @@ s.id=r.length-1},
 $S:0}
 B.azT.prototype={
 $1(a){var s=null,r=this.b,q=B.lX(!0,r,A.Wp,s,s,s,1,s)
-return B.oa(B.b([B.jy(A.h2,new B.azR(a),s),B.rc(A.rL,new B.azS(this.a,r,this.c,a))],t.D),q,A.aZq)},
+return B.oa(B.b([B.jy(A.h2,new B.azR(a),s),B.rc(A.rL,new B.azS(this.a,r,this.c,a))],t.D),q,A.aZp)},
 $S:38}
 B.azR.prototype={
 $0(){B.cR(this.a,!1).e8(null)
@@ -110287,8 +110287,8 @@ B.azn.prototype={
 $1(a){var s=this,r=null,q=s.b,p=B.cU("Marker "+(q+1)+" bearbeiten",r,r,r,r,r,r),o=s.c,n=B.lX(!1,o,A.Ww,r,r,r,1,r),m=s.d,l=B.lX(!1,m,A.Wq,r,r,A.rJ,1,r),k=s.e,j=B.lX(!1,k,B.aQ1(r,r,r,r,r,r,r,r,!0,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,r,"Sensorwert (Lux)",!0,!0,!1,r,r,r,r,r,r,r,r,r,r,r,r,r,r),r,r,A.rJ,1,r),i=s.a,h=s.f,g=h!=null,f=g?A.VJ:A.VN,e=B.cU(g?"Sensorwert \xfcbernehmen ("+A.m.ae(h,1)+" lx)":"Sensor simulieren",r,r,r,r,r,r)
 g=t.D
 f=B.j9(B.b([n,l,j,A.my,new B.CX(!0,new B.azi(i,h,k),r,r,r,r,A.aa,r,!1,r,!0,r,new B.a_B(e,f,r,r,r),r)],g),A.aP,A.aW,A.cW)
-g=B.b([B.jy(A.h2,new B.azj(a),r),B.jy(A.aZj,new B.azk(i,q,a),r)],g)
-if(i.go.length>1)g.push(B.jy(A.aZr,new B.azl(i,a),r))
+g=B.b([B.jy(A.h2,new B.azj(a),r),B.jy(A.aZi,new B.azk(i,q,a),r)],g)
+if(i.go.length>1)g.push(B.jy(A.aZq,new B.azl(i,a),r))
 g.push(B.rc(A.rL,new B.azm(i,s.r,o,k,m,a)))
 return B.oa(g,f,p)},
 $S:38}
@@ -110322,7 +110322,7 @@ B.qA(new B.aze(this.a,s),s,t.z)},
 $S:0}
 B.aze.prototype={
 $1(a){var s=null,r=this.a,q=B.cU('Soll der Bereich "'+r.go[r.id].a+'" inklusive aller Punkte gel\xf6scht werden?',s,s,s,s,s,s)
-return B.oa(B.b([B.jy(A.aZy,new B.azb(a),s),B.rc(A.aZh,new B.azc(r,a,this.b))],t.D),q,A.aZt)},
+return B.oa(B.b([B.jy(A.aZx,new B.azb(a),s),B.rc(A.aZg,new B.azc(r,a,this.b))],t.D),q,A.aZs)},
 $S:38}
 B.azb.prototype={
 $0(){B.cR(this.a,!1).e8(null)
@@ -110485,7 +110485,7 @@ B.cR(s,!1).e8(null)
 B.qA(new B.aAn(),s,t.z)},
 $S:0}
 B.aAn.prototype={
-$1(a){return B.oa(B.b([B.jy(A.aZG,new B.aA3(a),null)],t.D),A.SR,A.N4)},
+$1(a){return B.oa(B.b([B.jy(A.aZF,new B.aA3(a),null)],t.D),A.SR,A.N4)},
 $S:38}
 B.aA3.prototype={
 $0(){B.cR(this.a,!1).e8(null)
@@ -118609,12 +118609,12 @@ A.du=new B.r5(0,"start")
 A.dP=new B.auk(1,"down")
 A.da=new B.i_(700)
 A.N1=new B.v(!0,null,null,null,null,null,18,A.da,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-A.aZ9=new B.bz("Lightmeter Pro",null,A.N1,null,null,null,null,null,null)
+A.aZ8=new B.bz("Lightmeter Pro",null,A.N1,null,null,null,null,null,null)
 A.aTu=new B.ch(null,8,null,null)
-A.aZ7=new B.bz("Made by OvW",null,null,null,null,null,null,null,null)
-A.aZ1=new B.bz("Version: 0.5",null,null,null,null,null,null,null,null)
-A.aE4=s([A.aZ9,A.aTu,A.aZ7,A.aZ1],t.D)
-A.SR=new B.Cd(A.b5,A.aW,A.cW,A.du,null,A.dP,null,0,A.aE4,null)
+A.aZ6=new B.bz("Made by OvW",null,null,null,null,null,null,null,null)
+A.aZL=new B.bz("Version: 0.8",null,null,null,null,null,null,null,null)
+A.aE_=s([A.aZ8,A.aTu,A.aZ6,A.aZL],t.D)
+A.SR=new B.Cd(A.b5,A.aW,A.cW,A.du,null,A.dP,null,0,A.aE_,null)
 A.jB=new B.jb(0,"cut")
 A.jC=new B.jb(1,"copy")
 A.jD=new B.jb(2,"paste")
@@ -119386,7 +119386,7 @@ A.aIY=s([A.aKs,A.aIX,A.aJn],t.p)
 A.aG5=s([1,222,248,255,216,213,128,128,128,128,128],t.t)
 A.aHg=s([168,175,246,252,235,205,255,255,128,128,128],t.t)
 A.aFb=s([47,116,215,255,211,212,255,255,128,128,128],t.t)
-A.aE2=s([A.aG5,A.aHg,A.aFb],t.p)
+A.aE3=s([A.aG5,A.aHg,A.aFb],t.p)
 A.aG1=s([1,121,236,253,212,214,255,255,128,128,128],t.t)
 A.aGJ=s([141,84,213,252,201,202,255,219,128,128,128],t.t)
 A.aHI=s([42,80,160,240,162,185,255,205,128,128,128],t.t)
@@ -119394,7 +119394,7 @@ A.aFp=s([A.aG1,A.aGJ,A.aHI],t.p)
 A.aK7=s([244,1,255,128,128,128,128,128,128,128,128],t.t)
 A.Xe=s([238,1,255,128,128,128,128,128,128,128,128],t.t)
 A.aHR=s([A.Bt,A.aK7,A.Xe],t.p)
-A.a8h=s([A.aIC,A.aIx,A.aIw,A.aJH,A.aIY,A.aE2,A.aFp,A.aHR],t.wX)
+A.a8h=s([A.aIC,A.aIx,A.aIw,A.aJH,A.aIY,A.aE3,A.aFp,A.aHR],t.wX)
 A.aqf=s([A.aEe,A.aIv,A.axz,A.a8h],t.B1)
 A.aJc=s([137,80,78,71,13,10,26,10],t.Z)
 A.W8=new B.oP(0,"png")
@@ -119803,8 +119803,8 @@ A.cG=s([255,255,255,255,255,255,255,255,255,255,255],t.t)
 A.fC=s([A.cG,A.cG,A.cG],t.p)
 A.aGd=s([176,246,255,255,255,255,255,255,255,255,255],t.t)
 A.aK_=s([223,241,252,255,255,255,255,255,255,255,255],t.t)
-A.aE0=s([249,253,253,255,255,255,255,255,255,255,255],t.t)
-A.aGv=s([A.aGd,A.aK_,A.aE0],t.p)
+A.aE1=s([249,253,253,255,255,255,255,255,255,255,255],t.t)
+A.aGv=s([A.aGd,A.aK_,A.aE1],t.p)
 A.aFD=s([255,244,252,255,255,255,255,255,255,255,255],t.t)
 A.aFn=s([234,254,254,255,255,255,255,255,255,255,255],t.t)
 A.BY=s([253,255,255,255,255,255,255,255,255,255,255],t.t)
@@ -119829,9 +119829,9 @@ A.aG9=s([225,252,241,253,255,255,254,255,255,255,255],t.t)
 A.aIe=s([234,250,241,250,253,255,253,254,255,255,255],t.t)
 A.aJ8=s([A.a8g,A.aG9,A.aIe],t.p)
 A.qh=s([255,254,255,255,255,255,255,255,255,255,255],t.t)
-A.aE3=s([223,254,254,255,255,255,255,255,255,255,255],t.t)
+A.aE4=s([223,254,254,255,255,255,255,255,255,255,255],t.t)
 A.axC=s([238,253,254,254,255,255,255,255,255,255,255],t.t)
-A.aHJ=s([A.qh,A.aE3,A.axC],t.p)
+A.aHJ=s([A.qh,A.aE4,A.axC],t.p)
 A.aFr=s([249,254,255,255,255,255,255,255,255,255,255],t.t)
 A.aJC=s([A.BA,A.aFr,A.cG],t.p)
 A.aJa=s([255,253,255,255,255,255,255,255,255,255,255],t.t)
@@ -119985,8 +119985,8 @@ A.a4B=s([12,4,0,0],t.t)
 A.aue=s([6,6,2,2],t.t)
 A.akm=s([3,9,1,3],t.t)
 A.a4A=s([12,0,4,0],t.t)
-A.aE_=s([9,3,3,1],t.t)
-A.bX=s([A.B6,A.aeM,A.q1,A.aud,A.aeK,A.a8f,A.aq8,A.akj,A.aB_,A.aq9,A.a7N,A.a4B,A.aue,A.akm,A.a4A,A.aE_],t.p)
+A.aE0=s([9,3,3,1],t.t)
+A.bX=s([A.B6,A.aeM,A.q1,A.aud,A.aeK,A.a8f,A.aq8,A.akj,A.aB_,A.aq9,A.a7N,A.a4B,A.aue,A.akm,A.a4A,A.aE0],t.p)
 A.fD=s([0,-128,64,-64,32,-96,96,-32,16,-112,80,-48,48,-80,112,-16,8,-120,72,-56,40,-88,104,-24,24,-104,88,-40,56,-72,120,-8,4,-124,68,-60,36,-92,100,-28,20,-108,84,-44,52,-76,116,-12,12,-116,76,-52,44,-84,108,-20,28,-100,92,-36,60,-68,124,-4,2,-126,66,-62,34,-94,98,-30,18,-110,82,-46,50,-78,114,-14,10,-118,74,-54,42,-86,106,-22,26,-102,90,-38,58,-70,122,-6,6,-122,70,-58,38,-90,102,-26,22,-106,86,-42,54,-74,118,-10,14,-114,78,-50,46,-82,110,-18,30,-98,94,-34,62,-66,126,-2,1,-127,65,-63,33,-95,97,-31,17,-111,81,-47,49,-79,113,-15,9,-119,73,-55,41,-87,105,-23,25,-103,89,-39,57,-71,121,-7,5,-123,69,-59,37,-91,101,-27,21,-107,85,-43,53,-75,117,-11,13,-115,77,-51,45,-83,109,-19,29,-99,93,-35,61,-67,125,-3,3,-125,67,-61,35,-93,99,-29,19,-109,83,-45,51,-77,115,-13,11,-117,75,-53,43,-85,107,-21,27,-101,91,-37,59,-69,123,-5,7,-121,71,-57,39,-89,103,-25,23,-105,87,-41,55,-73,119,-9,15,-113,79,-49,47,-81,111,-17,31,-97,95,-33,63,-65,127,-1],t.t)
 A.S=new B.Eq(0,"ignored")
 A.bY=new B.j(4294967304)
@@ -120124,7 +120124,7 @@ A.aJe=s([A.Pl,A.Pc,A.Pk],t.G)
 A.Pj=new B.bH(-2,A.as,A.d6,A.e_,1)
 A.Pw=new B.bH(0,A.as,A.d7,A.lX,2)
 A.Pe=new B.bH(0,A.as,A.cR,A.dh,5)
-A.aE1=s([A.Pj,A.Pw,A.Pe],t.G)
+A.aE2=s([A.Pj,A.Pw,A.Pe],t.G)
 A.Pd=new B.bH(-2,A.as,A.d6,A.e_,3)
 A.Pg=new B.bH(0,A.as,A.d7,A.e_,4)
 A.PG=new B.bH(0,A.as,A.cR,A.dh,8)
@@ -120167,7 +120167,7 @@ A.aNb=new B.i(0,24)
 A.PB=new B.bH(3,A.as,A.d7,A.aNb,38)
 A.Pu=new B.bH(8,A.as,A.cR,A.Hf,46)
 A.aG7=s([A.Ph,A.PB,A.Pu],t.G)
-A.aM1=new B.bC([0,A.BR,1,A.aJe,2,A.aE1,3,A.aIF,4,A.ail,6,A.aEC,8,A.aq7,9,A.ash,12,A.aFj,16,A.aFg,24,A.aG7],B.am("bC<p,J<bH>>"))
+A.aM1=new B.bC([0,A.BR,1,A.aJe,2,A.aE2,3,A.aIF,4,A.ail,6,A.aEC,8,A.aq7,9,A.ash,12,A.aFj,16,A.aFg,24,A.aG7],B.am("bC<p,J<bH>>"))
 A.df=new B.j(4294968065)
 A.rn=new B.aq(A.df,!1,!1,!0,!1,A.S)
 A.cU=new B.j(4294968066)
@@ -124367,8 +124367,8 @@ A.Ho=new B.Tq(0,"nearestOverlay")
 A.aNS=new B.Tq(1,"rootOverlay")
 A.U5=new B.aR(16,0,8,0)
 A.iO=new B.v(!0,null,null,null,null,null,null,A.da,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-A.aZD=new B.bz("Bereiche :",null,A.iO,null,null,null,null,null,null)
-A.aNT=new B.cg(A.U5,A.aZD,null)
+A.aZC=new B.bz("Bereiche :",null,A.iO,null,null,null,null,null,null)
+A.aNT=new B.cg(A.U5,A.aZC,null)
 A.Hp=new B.F7(0,"natural")
 A.Hq=new B.F7(1,"landscape")
 A.Hr=new B.F7(2,"portrait")
@@ -124765,14 +124765,14 @@ A.aTE=new B.lR(3,"hide")
 A.b3j=new B.lR(4,"remove")
 A.aTF=new B.lR(5,"timeout")
 A.aTG=new B.yQ(null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-A.aZH=new B.bz("Projekt erfolgreich gespeichert",null,null,null,null,null,null,null,null)
-A.aTH=new B.lQ(A.aZH,null,null,null,null,null,null,null,null,null,null,null,null,A.dW,!1,null,null,null,A.al,null)
-A.aZe=new B.bz("Klicken Sie auf den gew\xfcnschten Nullpunkt (z.B. unten links).",null,null,null,null,null,null,null,null)
-A.aTI=new B.lQ(A.aZe,null,null,null,null,null,null,null,null,null,null,null,null,A.dW,!1,null,null,null,A.al,null)
-A.aZ4=new B.bz("Konnte PayPal Link nicht \xf6ffnen",null,null,null,null,null,null,null,null)
-A.aTJ=new B.lQ(A.aZ4,null,null,null,null,null,null,null,null,null,null,null,null,A.dW,!1,null,null,null,A.al,null)
-A.aZo=new B.bz("Web Bluetooth ist in diesem Browser nicht verf\xfcgbar oder deaktiviert.",null,null,null,null,null,null,null,null)
-A.aTK=new B.lQ(A.aZo,null,null,null,null,null,null,null,null,null,null,null,null,A.dW,!1,null,null,null,A.al,null)
+A.aZG=new B.bz("Projekt erfolgreich gespeichert",null,null,null,null,null,null,null,null)
+A.aTH=new B.lQ(A.aZG,null,null,null,null,null,null,null,null,null,null,null,null,A.dW,!1,null,null,null,A.al,null)
+A.aZd=new B.bz("Klicken Sie auf den gew\xfcnschten Nullpunkt (z.B. unten links).",null,null,null,null,null,null,null,null)
+A.aTI=new B.lQ(A.aZd,null,null,null,null,null,null,null,null,null,null,null,null,A.dW,!1,null,null,null,A.al,null)
+A.aZ3=new B.bz("Konnte PayPal Link nicht \xf6ffnen",null,null,null,null,null,null,null,null)
+A.aTJ=new B.lQ(A.aZ3,null,null,null,null,null,null,null,null,null,null,null,null,A.dW,!1,null,null,null,A.al,null)
+A.aZn=new B.bz("Web Bluetooth ist in diesem Browser nicht verf\xfcgbar oder deaktiviert.",null,null,null,null,null,null,null,null)
+A.aTK=new B.lQ(A.aZn,null,null,null,null,null,null,null,null,null,null,null,null,A.dW,!1,null,null,null,A.al,null)
 A.MB=new B.H5(0,"permissive")
 A.aTL=new B.H5(1,"normal")
 A.aTM=new B.H5(2,"forced")
@@ -125156,55 +125156,55 @@ A.aXA=new B.v(!0,A.aG,null,".AppleSystemUIFont",null,null,null,null,null,null,nu
 A.aXW=new B.v(!0,A.N,null,".AppleSystemUIFont",null,null,null,null,null,null,null,null,null,null,null,null,null,A.F,null,null,null,"blackRedwoodCity labelMedium",null,null,null,null)
 A.aV3=new B.v(!0,A.N,null,".AppleSystemUIFont",null,null,null,null,null,null,null,null,null,null,null,null,null,A.F,null,null,null,"blackRedwoodCity labelSmall",null,null,null,null)
 A.aZ0=new B.eG(A.aWP,A.aVL,A.aWQ,A.aXh,A.aVs,A.aVA,A.aW5,A.aXc,A.aWh,A.aXE,A.aUX,A.aVe,A.aXA,A.aXW,A.aV3)
-A.aZ2=new B.bz("Best\xe4tigen",null,null,null,null,null,null,null,null)
-A.aZ3=new B.bz("Projekt speichern",null,null,null,null,null,null,null,null)
+A.aZ1=new B.bz("Best\xe4tigen",null,null,null,null,null,null,null,null)
+A.aZ2=new B.bz("Projekt speichern",null,null,null,null,null,null,null,null)
 A.aVR=new B.v(!0,A.J,null,null,null,null,24,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-A.aZ5=new B.bz("Men\xfc",null,A.aVR,null,null,null,null,null,null)
-A.aZ6=new B.bz("Lightmeter Pro",null,null,null,null,null,null,null,null)
-A.aZ8=new B.bz("Raster verschieben",null,null,null,null,null,null,null,null)
-A.aZa=new B.bz("Am Raster andocken",null,null,null,null,null,null,null,null)
-A.aZb=new B.bz("Gespeichertes Projekt \xf6ffnen",null,null,null,null,null,null,null,null)
-A.aZc=new B.bz("Neustart",null,null,null,null,null,null,null,null)
-A.aZd=new B.bz("Logo hochladen",null,null,null,null,null,null,null,null)
-A.aZf=new B.bz("Hintergrundfarbe w\xe4hlen",null,null,null,null,null,null,null,null)
+A.aZ4=new B.bz("Men\xfc",null,A.aVR,null,null,null,null,null,null)
+A.aZ5=new B.bz("Lightmeter Pro",null,null,null,null,null,null,null,null)
+A.aZ7=new B.bz("Raster verschieben",null,null,null,null,null,null,null,null)
+A.aZ9=new B.bz("Am Raster andocken",null,null,null,null,null,null,null,null)
+A.aZa=new B.bz("Gespeichertes Projekt \xf6ffnen",null,null,null,null,null,null,null,null)
+A.aZb=new B.bz("Neustart",null,null,null,null,null,null,null,null)
+A.aZc=new B.bz("Logo hochladen",null,null,null,null,null,null,null,null)
+A.aZe=new B.bz("Hintergrundfarbe w\xe4hlen",null,null,null,null,null,null,null,null)
 A.h2=new B.bz("Abbrechen",null,null,null,null,null,null,null,null)
 A.S8=new B.D(1,0.9333333333333333,0.9333333333333333,0.9333333333333333,A.C)
 A.aMa=new B.bC([50,A.uz,100,A.uC,200,A.S8,300,A.uB,350,A.fb,400,A.nS,500,A.uK,600,A.hx,700,A.er,800,A.dV,850,A.nZ,900,A.ue],t.pl)
 A.aMy=new B.p8(A.aMa,1,0.6196078431372549,0.6196078431372549,0.6196078431372549,A.C)
 A.aXB=new B.v(!0,A.aMy,null,null,null,null,10,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-A.aZg=new B.bz("By OvW",null,A.aXB,null,null,null,null,null,null)
-A.aZh=new B.bz("Ja, l\xf6schen",null,null,null,null,null,null,null,null)
-A.aZi=new B.bz("Projekt-Infos bearbeiten",null,null,null,null,null,null,null,null)
+A.aZf=new B.bz("By OvW",null,A.aXB,null,null,null,null,null,null)
+A.aZg=new B.bz("Ja, l\xf6schen",null,null,null,null,null,null,null,null)
+A.aZh=new B.bz("Projekt-Infos bearbeiten",null,null,null,null,null,null,null,null)
 A.N3=new B.v(!0,A.qz,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-A.aZj=new B.bz("Marker l\xf6schen",null,A.N3,null,null,null,null,null,null)
-A.aZk=new B.bz("PDF Grundriss laden",null,null,null,null,null,null,null,null)
-A.aZl=new B.bz("Marker-Gr\xf6\xdfe",null,null,null,null,null,null,null,null)
-A.aZm=new B.bz("Projekt-Informationen",null,null,null,null,null,null,null,null)
-A.aZn=new B.bz("Projekt laden",null,null,null,null,null,null,null,null)
-A.aZp=new B.bz("Erstellen",null,null,null,null,null,null,null,null)
-A.aZq=new B.bz("Bereich umbenennen",null,null,null,null,null,null,null,null)
-A.aZr=new B.bz("Bereich l\xf6schen",null,A.N3,null,null,null,null,null,null)
+A.aZi=new B.bz("Marker l\xf6schen",null,A.N3,null,null,null,null,null,null)
+A.aZj=new B.bz("PDF Grundriss laden",null,null,null,null,null,null,null,null)
+A.aZk=new B.bz("Marker-Gr\xf6\xdfe",null,null,null,null,null,null,null,null)
+A.aZl=new B.bz("Projekt-Informationen",null,null,null,null,null,null,null,null)
+A.aZm=new B.bz("Projekt laden",null,null,null,null,null,null,null,null)
+A.aZo=new B.bz("Erstellen",null,null,null,null,null,null,null,null)
+A.aZp=new B.bz("Bereich umbenennen",null,null,null,null,null,null,null,null)
+A.aZq=new B.bz("Bereich l\xf6schen",null,A.N3,null,null,null,null,null,null)
 A.N4=new B.bz("Info",null,null,null,null,null,null,null,null)
-A.aZs=new B.bz("Maus ziehen zum Bewegen",null,null,null,null,null,null,null,null)
-A.aZt=new B.bz("Bereich l\xf6schen?",null,null,null,null,null,null,null,null)
-A.aZu=new B.bz("Sensorkalibrierung",null,A.N1,null,null,null,null,null,null)
-A.aZv=new B.bz("Sensorkalibrierung",null,null,null,null,null,null,null,null)
-A.aZw=new B.bz("Raster anzeigen",null,null,null,null,null,null,null,null)
-A.aZx=new B.bz("Neuer Bereich / Raum",null,null,null,null,null,null,null,null)
-A.aZy=new B.bz("Nein",null,null,null,null,null,null,null,null)
-A.aZz=new B.bz("Position zur\xfccksetzen",null,null,null,null,null,null,null,null)
-A.aZA=new B.bz("Name, Messger\xe4t, Notizen",null,null,null,null,null,null,null,null)
-A.aZB=new B.bz("Faktor: ",null,null,null,null,null,null,null,null)
-A.aZC=new B.bz("Messpunkte l\xf6schen",null,null,null,null,null,null,null,null)
-A.aZE=new B.bz("Neustart best\xe4tigen",null,null,null,null,null,null,null,null)
-A.aZF=new B.bz("Aktuellen Stand sichern",null,null,null,null,null,null,null,null)
-A.aZG=new B.bz("Schlie\xdfen",null,null,null,null,null,null,null,null)
+A.aZr=new B.bz("Maus ziehen zum Bewegen",null,null,null,null,null,null,null,null)
+A.aZs=new B.bz("Bereich l\xf6schen?",null,null,null,null,null,null,null,null)
+A.aZt=new B.bz("Sensorkalibrierung",null,A.N1,null,null,null,null,null,null)
+A.aZu=new B.bz("Sensorkalibrierung",null,null,null,null,null,null,null,null)
+A.aZv=new B.bz("Raster anzeigen",null,null,null,null,null,null,null,null)
+A.aZw=new B.bz("Neuer Bereich / Raum",null,null,null,null,null,null,null,null)
+A.aZx=new B.bz("Nein",null,null,null,null,null,null,null,null)
+A.aZy=new B.bz("Position zur\xfccksetzen",null,null,null,null,null,null,null,null)
+A.aZz=new B.bz("Name, Messger\xe4t, Notizen",null,null,null,null,null,null,null,null)
+A.aZA=new B.bz("Faktor: ",null,null,null,null,null,null,null,null)
+A.aZB=new B.bz("Messpunkte l\xf6schen",null,null,null,null,null,null,null,null)
+A.aZD=new B.bz("Neustart best\xe4tigen",null,null,null,null,null,null,null,null)
+A.aZE=new B.bz("Aktuellen Stand sichern",null,null,null,null,null,null,null,null)
+A.aZF=new B.bz("Schlie\xdfen",null,null,null,null,null,null,null,null)
 A.rL=new B.bz("Speichern",null,null,null,null,null,null,null,null)
 A.N5=new B.bz("OK",null,null,null,null,null,null,null,null)
-A.aZI=new B.bz("Ma\xdfstab festlegen (Sensor)",null,null,null,null,null,null,null,null)
-A.aZJ=new B.bz("M\xf6chten Sie wirklich alle Messpunkte l\xf6schen und neu starten?",null,null,null,null,null,null,null,null)
-A.aZK=new B.bz("Referenzpunkt zur\xfccksetzen",null,null,null,null,null,null,null,null)
-A.aZL=new B.bz("Erscheint im PDF-Kopf",null,null,null,null,null,null,null,null)
+A.aZH=new B.bz("Ma\xdfstab festlegen (Sensor)",null,null,null,null,null,null,null,null)
+A.aZI=new B.bz("M\xf6chten Sie wirklich alle Messpunkte l\xf6schen und neu starten?",null,null,null,null,null,null,null,null)
+A.aZJ=new B.bz("Referenzpunkt zur\xfccksetzen",null,null,null,null,null,null,null,null)
+A.aZK=new B.bz("Erscheint im PDF-Kopf",null,null,null,null,null,null,null,null)
 A.b3n=new B.atv(0,"system")
 A.aNq=new B.i(0.056,0.024)
 A.aNG=new B.i(0.108,0.3085)

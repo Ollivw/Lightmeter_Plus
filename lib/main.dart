@@ -12,8 +12,7 @@ import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:printing/printing.dart'; // Für stabiles PDF-Rendering
 import 'package:url_launcher/url_launcher.dart';
 import 'save_helper.dart' if (dart.library.html) 'save_helper_web.dart';
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
+import 'pdf_helper.dart';
 
 import 'widgets/bluetooth_service.dart';
 import 'models/measurement_models.dart';
@@ -788,343 +787,26 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _exportToPdf() async {
     if (_pdfBytes == null) return;
 
-    // Check if we have any points at all
     bool hasAnyPoints = _areas.any((area) => area.markers.isNotEmpty);
     if (!hasAnyPoints) return;
 
     setState(() => _isExportingPdf = true);
-    // Kurze Verzögerung, damit das UI Zeit hat, den Ladekreis zu zeichnen
     await Future.delayed(const Duration(milliseconds: 100));
 
     try {
-      final pdf = pw.Document();
-      final image = pw.MemoryImage(_pdfBytes!);
-      final pw.MemoryImage? logoImage = _logoBytes != null
-          ? pw.MemoryImage(_logoBytes!)
-          : null;
-
-      pw.Widget buildPdfHeader() {
-        return pw.Container(
-          margin: const pw.EdgeInsets.only(bottom: 10),
-          child: pw.Row(
-            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: pw.CrossAxisAlignment.center,
-            children: [
-              if (logoImage != null)
-                pw.Container(height: 40, child: pw.Image(logoImage))
-              else
-                pw.Text(
-                  'By OvW',
-                  style: pw.TextStyle(fontSize: 12, color: PdfColors.grey),
-                ),
-              pw.Text(
-                'Lightmeter Pro Report',
-                style: pw.TextStyle(fontSize: 10, color: PdfColors.grey),
-              ),
-            ],
-          ),
-        );
-      }
-
-      // Seite 1: Grundriss mit Overlays
-      pdf.addPage(
-        pw.Page(
-          pageFormat: PdfPageFormat.a4,
-          orientation: _pdfSize!.width > _pdfSize!.height
-              ? pw.PageOrientation.landscape
-              : pw.PageOrientation.portrait,
-          build: (pw.Context context) {
-            return pw.FittedBox(
-              fit: pw.BoxFit.contain,
-              child: pw.SizedBox(
-                width: _pdfSize!.width,
-                height: _pdfSize!.height,
-                child: pw.Stack(
-                  children: [
-                    pw.Image(image),
-                    // Referenzpunkt (Nullpunkt) auf dem Plan einzeichnen
-                    if (_referencePoint != Offset.zero)
-                      pw.Positioned(
-                        left: _referencePoint.dx - (_markerSize / 2),
-                        top: _referencePoint.dy - (_markerSize / 2),
-                        child: pw.SizedBox(
-                          width: _markerSize,
-                          height: _markerSize,
-                          child: pw.Stack(
-                            children: [
-                              pw.Center(
-                                child: pw.Container(
-                                  width: _markerSize,
-                                  height: 2,
-                                  color: PdfColors.blue,
-                                ),
-                              ),
-                              pw.Center(
-                                child: pw.Container(
-                                  width: 2,
-                                  height: _markerSize,
-                                  color: PdfColors.blue,
-                                ),
-                              ),
-                              pw.Positioned(
-                                left: _markerSize * 0.6,
-                                top: _markerSize * 0.6,
-                                child: pw.Text(
-                                  'REF',
-                                  style: pw.TextStyle(
-                                    color: PdfColors.blue,
-                                    fontWeight: pw.FontWeight.bold,
-                                    fontSize: _markerSize * 0.4,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    // Alle Marker zeichnen
-                    ..._areas
-                        .map((area) {
-                          return area.markers.asMap().entries.map((entry) {
-                            final int markerIndex = entry.key;
-                            final MeasurementMarker marker = entry.value;
-                            return pw.Positioned(
-                              left: marker.position.dx - (_markerSize / 2),
-                              top: marker.position.dy - _markerSize,
-                              child: pw.Column(
-                                mainAxisSize: pw.MainAxisSize.min,
-                                children: [
-                                  pw.Text(
-                                    area.name,
-                                    style: pw.TextStyle(
-                                      fontSize: _markerSize * 0.3,
-                                      color: PdfColors.grey700,
-                                    ),
-                                  ),
-                                  pw.Text(
-                                    marker.label.isNotEmpty
-                                        ? marker.label
-                                        : '${markerIndex + 1}',
-                                    style: pw.TextStyle(
-                                      fontSize: _markerSize * 0.5,
-                                      color: PdfColors.red,
-                                      fontWeight: pw.FontWeight.bold,
-                                    ),
-                                  ),
-                                  if (marker.sensorValue != null)
-                                    pw.Text(
-                                      '${marker.sensorValue} lx',
-                                      style: pw.TextStyle(
-                                        fontSize: _markerSize * 0.5,
-                                        color: PdfColors.green,
-                                      ),
-                                    ),
-                                  pw.Container(
-                                    width: _markerSize * 0.5,
-                                    height: _markerSize * 0.5,
-                                    decoration: const pw.BoxDecoration(
-                                      color: PdfColors.red,
-                                      shape: pw.BoxShape.circle,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }).toList();
-                        })
-                        .expand((element) => element),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
-      );
-
-      // Helper for PDF Stat Cards
-      pw.Widget buildPdfStatCard(String title, String value, PdfColor color) {
-        return pw.Container(
-          width: 160,
-          padding: const pw.EdgeInsets.all(10),
-          decoration: pw.BoxDecoration(
-            color: color,
-            borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
-          ),
-          child: pw.Column(
-            children: [
-              pw.Text(
-                title,
-                style: pw.TextStyle(color: PdfColors.white, fontSize: 10),
-              ),
-              pw.SizedBox(height: 4),
-              pw.Text(
-                value,
-                style: pw.TextStyle(
-                  color: PdfColors.white,
-                  fontWeight: pw.FontWeight.bold,
-                  fontSize: 14,
-                ),
-              ),
-            ],
-          ),
-        );
-      }
-
-      // Add Pages per Area
-      for (var area in _areas) {
-        if (area.markers.isEmpty) continue;
-
-        final sensorValues = area.markers
-            .map((m) => m.sensorValue)
-            .whereType<double>()
-            .toList();
-        final double? minVal = sensorValues.isEmpty
-            ? null
-            : sensorValues.reduce(min);
-        final double? maxVal = sensorValues.isEmpty
-            ? null
-            : sensorValues.reduce(max);
-        final double? meanVal = sensorValues.isEmpty
-            ? null
-            : sensorValues.reduce((a, b) => a + b) / sensorValues.length;
-
-        pdf.addPage(
-          pw.MultiPage(
-            build: (pw.Context context) {
-              return [
-                buildPdfHeader(),
-                pw.Text(
-                  'Messbericht - Bereich: ${area.name}',
-                  style: pw.TextStyle(
-                    fontSize: 24,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-                pw.SizedBox(height: 20),
-
-                // Projekt-Details Header
-                pw.Container(
-                  padding: const pw.EdgeInsets.all(10),
-                  decoration: const pw.BoxDecoration(
-                    color: PdfColors.grey100,
-                    borderRadius: pw.BorderRadius.all(pw.Radius.circular(8)),
-                  ),
-                  child: pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Row(
-                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                        children: [
-                          pw.Text(
-                            'Projekt: ${_projectName.isEmpty ? "Unbenannt" : _projectName}',
-                            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                          ),
-                          pw.Text('Datum/Zeit: $_projectDate'),
-                        ],
-                      ),
-                      pw.Divider(color: PdfColors.grey300),
-                      pw.Text(
-                        'Prüfer: ${_surveyorName.isEmpty ? "Nicht angegeben" : _surveyorName}',
-                      ),
-                      pw.Text(
-                        'Geräte: ${_usedDevices.isEmpty ? "Nicht angegeben" : _usedDevices}',
-                      ),
-                      if (_additionalNotes.isNotEmpty)
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.only(top: 4),
-                          child: pw.Text(
-                            'Notizen: $_additionalNotes',
-                            style: pw.TextStyle(
-                              fontStyle: pw.FontStyle.italic,
-                              color: PdfColors.grey700,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                pw.SizedBox(height: 25),
-
-                // Statistik Dashboard
-                if (sensorValues.isNotEmpty)
-                  pw.Row(
-                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                    children: [
-                      buildPdfStatCard(
-                        'Minimum (Emin)',
-                        '${minVal!.toStringAsFixed(1)} lx',
-                        PdfColors.blueGrey700,
-                      ),
-                      buildPdfStatCard(
-                        'Mittelwert (Em)',
-                        '${meanVal!.toStringAsFixed(1)} lx',
-                        PdfColors.blue700,
-                      ),
-                      buildPdfStatCard(
-                        'Maximum (Emax)',
-                        '${maxVal!.toStringAsFixed(1)} lx',
-                        PdfColors.teal700,
-                      ),
-                    ],
-                  ),
-                pw.SizedBox(height: 30),
-
-                pw.Table.fromTextArray(
-                  border: null,
-                  headerStyle: pw.TextStyle(
-                    color: PdfColors.white,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                  headerDecoration: const pw.BoxDecoration(
-                    color: PdfColors.blueGrey900,
-                  ),
-                  rowDecoration: const pw.BoxDecoration(
-                    border: pw.Border(
-                      bottom: pw.BorderSide(
-                        color: PdfColors.grey300,
-                        width: 0.5,
-                      ),
-                    ),
-                  ),
-                  cellHeight: 30,
-                  cellAlignments: {
-                    0: pw.Alignment.centerLeft,
-                    1: pw.Alignment.centerLeft,
-                    2: pw.Alignment.centerLeft,
-                    3: pw.Alignment.centerLeft,
-                    4: pw.Alignment.centerRight,
-                  },
-                  headers: [
-                    '#',
-                    'Bezeichnung',
-                    'Position (X/Y)',
-                    'Höhe',
-                    'Wert',
-                  ],
-                  data: area.markers.asMap().entries.map((e) {
-                    final m = e.value;
-                    final x =
-                        ((m.position.dx - _referencePoint.dx) / _pixelsPerMeter)
-                            .toStringAsFixed(2);
-                    final y =
-                        ((_referencePoint.dy - m.position.dy) / _pixelsPerMeter)
-                            .toStringAsFixed(2);
-                    return [
-                      '${e.key + 1}',
-                      m.label,
-                      '${x}m / ${y}m',
-                      '${m.height}m',
-                      m.sensorValue != null ? '${m.sensorValue} lx' : '-',
-                    ];
-                  }).toList(),
-                ),
-              ];
-            },
-          ),
-        );
-      }
-      await Printing.layoutPdf(
-        onLayout: (PdfPageFormat format) async => pdf.save(),
+      await PdfHelper.exportToPdf(
+        pdfBytes: _pdfBytes!,
+        logoBytes: _logoBytes,
+        pdfSize: _pdfSize!,
+        projectName: _projectName,
+        surveyorName: _surveyorName,
+        projectDate: _projectDate,
+        usedDevices: _usedDevices,
+        additionalNotes: _additionalNotes,
+        areas: _areas,
+        referencePoint: _referencePoint,
+        pixelsPerMeter: _pixelsPerMeter,
+        markerSize: _markerSize,
       );
     } catch (e) {
       debugPrint('Export Error: $e');
@@ -1274,7 +956,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 _currentMousePosition = null;
               });
             },
-            tooltip: 'Kalibrieren',
+            tooltip: 'Massstab setzen',
           ),
           IconButton(
             icon: Icon(
@@ -1305,10 +987,12 @@ class _HomeScreenState extends State<HomeScreen> {
               tooltip: 'Kalibrierung abbrechen',
             ),
           IconButton(
-            icon: const Icon(Icons.color_lens),
-            onPressed: _showColorPicker,
-            tooltip: 'Hintergrundfarbe',
+            icon: const Icon(Icons.lightbulb_outline),
+            onPressed: () =>
+                setState(() => _showSensorSheet = !_showSensorSheet),
+            tooltip: 'Sensorwerte anzeigen',
           ),
+
           IconButton(
             icon: const Icon(Icons.picture_as_pdf),
             onPressed: _pdfBytes != null ? _exportToPdf : null,
@@ -1317,7 +1001,7 @@ class _HomeScreenState extends State<HomeScreen> {
           IconButton(
             icon: const Icon(Icons.folder),
             onPressed: _pickPdf,
-            tooltip: 'PDF öffnen',
+            tooltip: 'PDF Grundriss öffnen',
           ),
           IconButton(
             icon: const Icon(Icons.brightness_6),
@@ -1325,11 +1009,11 @@ class _HomeScreenState extends State<HomeScreen> {
             tooltip: 'Theme umschalten',
           ),
           IconButton(
-            icon: const Icon(Icons.lightbulb_outline),
-            onPressed: () =>
-                setState(() => _showSensorSheet = !_showSensorSheet),
-            tooltip: 'Sensorwerte anzeigen',
+            icon: const Icon(Icons.color_lens),
+            onPressed: _showColorPicker,
+            tooltip: 'Hintergrundfarbe',
           ),
+
           IconButton(
             icon: const Icon(Icons.volunteer_activism, color: Colors.redAccent),
             onPressed: () async {
@@ -1369,6 +1053,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 _loadProject();
               },
             ),
+
+            ListTile(
+              leading: const Icon(Icons.save),
+              title: const Text('Projekt speichern'),
+              subtitle: const Text('Aktuellen Stand sichern'),
+              onTap: () {
+                Navigator.pop(context);
+                _saveProject();
+              },
+            ),
             ListTile(
               leading: const Icon(Icons.add_photo_alternate),
               title: const Text('Logo hochladen'),
@@ -1382,15 +1076,6 @@ class _HomeScreenState extends State<HomeScreen> {
               onTap: () {
                 Navigator.pop(context);
                 _pickLogo();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.save),
-              title: const Text('Projekt speichern'),
-              subtitle: const Text('Aktuellen Stand sichern'),
-              onTap: () {
-                Navigator.pop(context);
-                _saveProject();
               },
             ),
             ListTile(
@@ -1440,7 +1125,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         SizedBox(height: 8),
                         Text('Made by OvW'),
-                        Text('Version: 0.5'),
+                        Text('Version: 0.8'),
                       ],
                     ),
                     actions: [
@@ -1726,8 +1411,14 @@ class _HomeScreenState extends State<HomeScreen> {
                                 int index = entry.key;
                                 MeasurementMarker marker = entry.value;
                                 return Positioned(
-                                  left: marker.position.dx - (_markerSize / 2),
-                                  top: marker.position.dy - _markerSize,
+                                  left:
+                                      marker.position.dx -
+                                      (_markerSize *
+                                          4), // Breite an _markerSize anpassen
+                                  bottom: _pdfSize!.height - marker.position.dy,
+                                  width:
+                                      _markerSize *
+                                      8, // Breite an _markerSize anpassen
                                   child: GestureDetector(
                                     onTap: () => _editMarkerData(index),
                                     onPanStart: (details) {
@@ -1765,6 +1456,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                       });
                                     },
                                     child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.center,
                                       children: [
                                         Text(
                                           _areas[_selectedAreaIndex].name,
@@ -1936,19 +1630,19 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: Text(
                           _hasHardwareSensor && _currentLightValue == null
                               ? 'Warte auf Sensordaten...'
-                              : 'Aktueller Wert: ${_currentLightValue?.toStringAsFixed(1) ?? "---"} lx',
+                              : 'Aktuell: ${_currentLightValue?.toStringAsFixed(1) ?? "---"} lx',
                           style: const TextStyle(fontSize: 16),
                         ),
                       ),
-                      Text(
-                        _currentDistanceValue != null
-                            ? 'Distanz: ${_currentDistanceValue!.toStringAsFixed(0)} cm'
-                            : '',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Theme.of(context).hintColor,
-                        ),
-                      ),
+                      // Text(
+                      //   _currentDistanceValue != null
+                      //       ? 'Distanz: ${_currentDistanceValue!.toStringAsFixed(0)} cm'
+                      //       : '',
+                      //   style: TextStyle(
+                      //     fontSize: 14,
+                      //     color: Theme.of(context).hintColor,
+                      //   ),
+                      // ),
                       const Spacer(),
                       Text(
                         'Kalibriert: ${(_currentLightValue != null ? (_currentLightValue! * _lightCalibrationFactor) : 0.0).toStringAsFixed(1)} lx',
@@ -1967,9 +1661,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       Expanded(
                         child: Slider(
                           value: _lightCalibrationFactor,
-                          min: 0.1,
-                          max: 5.0,
-                          divisions: 49,
+                          min: 0.01,
+                          max: 3.0,
+                          divisions: 299,
                           label: _lightCalibrationFactor.toStringAsFixed(2),
                           onChanged: (val) =>
                               setState(() => _lightCalibrationFactor = val),

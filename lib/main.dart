@@ -10,6 +10,7 @@ import 'dart:async';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:printing/printing.dart'; // Für stabiles PDF-Rendering
 import 'package:url_launcher/url_launcher.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'save_helper.dart' if (dart.library.html) 'save_helper_web.dart';
 import 'pdf_helper.dart';
 
@@ -55,6 +56,11 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  bool _isEnglish = false;
+
+  String _l(String de, String en) => _isEnglish ? en : de;
+  String _appVersion = '';
+
   bool _isLoading = false;
   Uint8List? _pdfBytes;
   Size? _pdfSize;
@@ -83,6 +89,17 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _projectDate = _getFormattedDateTime();
     _initLightSensor();
+    _initPackageInfo();
+  }
+
+  Future<void> _initPackageInfo() async {
+    final info = await PackageInfo.fromPlatform();
+    if (mounted) {
+      setState(() {
+        // Format: 1.0.0 (Build 1)
+        _appVersion = '${info.version} (Build ${info.buildNumber})';
+      });
+    }
   }
 
   @override
@@ -154,7 +171,12 @@ class _HomeScreenState extends State<HomeScreen> {
         // but we can assume connection if no error was thrown.
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Verbunden mit externem Bluetooth-Sensor.'),
+            content: Text(
+              _l(
+                'Verbunden mit externem Bluetooth-Sensor.',
+                'Connected to external Bluetooth sensor.',
+              ),
+            ),
             backgroundColor: Colors.green,
           ),
         );
@@ -163,7 +185,11 @@ class _HomeScreenState extends State<HomeScreen> {
       debugPrint('Bluetooth Fehler: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Verbindung fehlgeschlagen: $e')),
+          SnackBar(
+            content: Text(
+              '${_l('Verbindung fehlgeschlagen', 'Connection failed')}: $e',
+            ),
+          ),
         );
       }
     } finally {
@@ -250,18 +276,21 @@ class _HomeScreenState extends State<HomeScreen> {
     final bool? confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Neustart bestätigen'),
-        content: const Text(
-          'Möchten Sie wirklich alle Messpunkte löschen und neu starten?',
+        title: Text(_l('Neustart bestätigen', 'Confirm Reset')),
+        content: Text(
+          _l(
+            'Möchten Sie wirklich alle Messpunkte löschen und neu starten?',
+            'Do you really want to delete all measurement points and start over?',
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Abbrechen'),
+            child: Text(_l('Abbrechen', 'Cancel')),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Bestätigen'),
+            child: Text(_l('Bestätigen', 'Confirm')),
           ),
         ],
       ),
@@ -384,7 +413,7 @@ class _HomeScreenState extends State<HomeScreen> {
               _pdfBytes = finalBytes;
               _pdfSize = finalSize;
               _areas.clear();
-              _areas.add(MeasurementArea(name: 'Allgemein'));
+              _areas.add(MeasurementArea(name: _l('Allgemein', 'General')));
               _selectedAreaIndex = 0;
               _isCalibrating = false;
               _showGrid = false;
@@ -410,7 +439,9 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Fehler beim Laden des Grundrisses: ${e.toString()}'),
+            content: Text(
+              '${_l('Fehler beim Laden des Grundrisses', 'Error loading floor plan')}: ${e.toString()}',
+            ),
             backgroundColor: Colors.red,
           ),
         );
@@ -425,9 +456,12 @@ class _HomeScreenState extends State<HomeScreen> {
     if (kIsWeb) {
       // Im Web nutzen wir den FilePicker mit dem Hinweis auf die Kamera
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
-            'Nutzen Sie im folgenden Dialog "Kamera" oder "Dokument scannen".',
+            _l(
+              'Nutzen Sie im folgenden Dialog "Kamera" oder "Dokument scannen".',
+              'Use "Camera" or "Scan Document" in the following dialog.',
+            ),
           ),
           duration: Duration(seconds: 3),
         ),
@@ -499,9 +533,9 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Logo-Fehler: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${_l('Logo-Fehler', 'Logo Error')}: $e')),
+        );
       }
     }
   }
@@ -541,11 +575,13 @@ class _HomeScreenState extends State<HomeScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Maßstab festlegen (Sensor)'),
+        title: Text(_l('Maßstab festlegen', 'Set Scale')),
         content: TextField(
           controller: controller,
           keyboardType: TextInputType.number,
-          decoration: const InputDecoration(labelText: 'Länge in Meter'),
+          decoration: InputDecoration(
+            labelText: _l('Länge in Meter', 'Length in meters'),
+          ),
         ),
         actions: [
           TextButton(
@@ -558,7 +594,7 @@ class _HomeScreenState extends State<HomeScreen> {
               });
               Navigator.pop(context);
             },
-            child: const Text('Abbrechen'),
+            child: Text(_l('Abbrechen', 'Cancel')),
           ),
           ElevatedButton(
             onPressed: () {
@@ -628,7 +664,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   DropdownButtonFormField<String>(
-                    initialValue: dialogSelectedMeasurementType,
+                    value: dialogSelectedMeasurementType,
                     decoration: const InputDecoration(
                       labelText: 'Art der Beleuchtungsmessung',
                     ),
@@ -659,15 +695,21 @@ class _HomeScreenState extends State<HomeScreen> {
                       dialogDefaultMeasurementHeight =
                           double.tryParse(value) ?? 0.75;
                     },
-                    decoration: const InputDecoration(
-                      labelText: 'Standard-Messebene / Höhe',
+                    decoration: InputDecoration(
+                      labelText: _l(
+                        'Standard-Messebene / Höhe',
+                        'Standard Reference Plane / Height',
+                      ),
                     ),
                   ),
                   TextField(
                     controller: nController,
                     maxLines: 3,
-                    decoration: const InputDecoration(
-                      labelText: 'Infos(Lux-Werte, etc.)',
+                    decoration: InputDecoration(
+                      labelText: _l(
+                        'Infos(Lux-Werte, etc.)',
+                        'Notes (Lux values, etc.)',
+                      ),
                     ),
                   ),
                 ],
@@ -676,7 +718,7 @@ class _HomeScreenState extends State<HomeScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Abbrechen'),
+                child: Text(_l('Abbrechen', 'Cancel')),
               ),
               ElevatedButton(
                 onPressed: () {
@@ -692,7 +734,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   });
                   Navigator.pop(context);
                 },
-                child: const Text('Speichern'),
+                child: Text(_l('Speichern', 'Save')),
               ),
             ],
           );
@@ -711,16 +753,18 @@ class _HomeScreenState extends State<HomeScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Neuer Bereich / Raum'),
+        title: Text(_l('Neuer Bereich / Raum', 'New Area / Room')),
         content: TextField(
           controller: controller,
-          decoration: const InputDecoration(labelText: 'Name des Bereichs'),
+          decoration: InputDecoration(
+            labelText: _l('Name des Bereichs', 'Area Name'),
+          ),
           autofocus: true,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Abbrechen'),
+            child: Text(_l('Abbrechen', 'Cancel')),
           ),
           ElevatedButton(
             onPressed: () {
@@ -732,7 +776,7 @@ class _HomeScreenState extends State<HomeScreen> {
               }
               Navigator.pop(context);
             },
-            child: const Text('Erstellen'),
+            child: Text(_l('Erstellen', 'Create')),
           ),
         ],
       ),
@@ -744,16 +788,16 @@ class _HomeScreenState extends State<HomeScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Bereich umbenennen'),
+        title: Text(_l('Bereich umbenennen', 'Rename Area')),
         content: TextField(
           controller: controller,
-          decoration: const InputDecoration(labelText: 'Neuer Name'),
+          decoration: InputDecoration(labelText: _l('Neuer Name', 'New Name')),
           autofocus: true,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Abbrechen'),
+            child: Text(_l('Abbrechen', 'Cancel')),
           ),
           ElevatedButton(
             onPressed: () {
@@ -764,7 +808,7 @@ class _HomeScreenState extends State<HomeScreen> {
               }
               Navigator.pop(context);
             },
-            child: const Text('Speichern'),
+            child: Text(_l('Speichern', 'Save')),
           ),
         ],
       ),
@@ -793,22 +837,27 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             TextField(
               controller: labelController,
-              decoration: const InputDecoration(
-                labelText: 'Bezeichnung (z.B. Zone,Tisch, etc.)',
+              decoration: InputDecoration(
+                labelText: _l(
+                  'Bezeichnung (z.B. Zone, Tisch, etc.)',
+                  'Label (e.g. Zone, Desk, etc.)',
+                ),
               ),
             ),
             TextField(
               controller: heightController,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Messhöhe (m)',
+              decoration: InputDecoration(
+                labelText: _l('Messhöhe (m)', 'Measurement Height (m)'),
                 suffixText: 'm',
               ),
             ),
             TextField(
-              controller: valueController, // Keep this for manual input
-              keyboardType: TextInputType.number, // Allow manual input
-              decoration: InputDecoration(labelText: 'Sensorwert (Lux)'),
+              controller: valueController,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: _l('Sensorwert (Lux)', 'Sensor Value (Lux)'),
+              ),
             ),
             const SizedBox(height: 10),
             ElevatedButton.icon(
@@ -832,8 +881,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   : const Icon(Icons.sensors_off),
               label: Text(
                 calibratedLightValue != null
-                    ? 'Sensorwert übernehmen (${calibratedLightValue.toStringAsFixed(1)} lx)'
-                    : 'Sensor simulieren',
+                    ? '${_l('Sensorwert übernehmen', 'Use sensor value')} (${calibratedLightValue.toStringAsFixed(1)} lx)'
+                    : _l('Sensor simulieren', 'Simulate sensor'),
               ),
             ),
           ],
@@ -841,7 +890,7 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Abbrechen'),
+            child: Text(_l('Abbrechen', 'Cancel')),
           ),
           TextButton(
             onPressed: () {
@@ -850,8 +899,8 @@ class _HomeScreenState extends State<HomeScreen> {
               });
               Navigator.pop(context);
             },
-            child: const Text(
-              'Marker löschen',
+            child: Text(
+              _l('Marker löschen', 'Delete Marker'),
               style: TextStyle(color: Colors.red),
             ),
           ),
@@ -861,14 +910,17 @@ class _HomeScreenState extends State<HomeScreen> {
                 showDialog(
                   context: context,
                   builder: (ctx) => AlertDialog(
-                    title: const Text('Bereich löschen?'),
+                    title: Text(_l('Bereich löschen?', 'Delete Area?')),
                     content: Text(
-                      'Soll der Bereich "${_areas[_selectedAreaIndex].name}" inklusive aller Punkte gelöscht werden?',
+                      _l(
+                        'Soll der Bereich "${_areas[_selectedAreaIndex].name}" inklusive aller Punkte gelöscht werden?',
+                        'Should the area "${_areas[_selectedAreaIndex].name}" including all points be deleted?',
+                      ),
                     ),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(ctx),
-                        child: const Text('Nein'),
+                        child: Text(_l('Nein', 'No')),
                       ),
                       ElevatedButton(
                         onPressed: () {
@@ -880,14 +932,14 @@ class _HomeScreenState extends State<HomeScreen> {
                           Navigator.pop(ctx);
                           Navigator.pop(context);
                         },
-                        child: const Text('Ja, löschen'),
+                        child: Text(_l('Ja, löschen', 'Yes, delete')),
                       ),
                     ],
                   ),
                 );
               },
-              child: const Text(
-                'Bereich löschen',
+              child: Text(
+                _l('Bereich löschen', 'Delete Area'),
                 style: TextStyle(color: Colors.red),
               ),
             ),
@@ -904,7 +956,7 @@ class _HomeScreenState extends State<HomeScreen> {
               });
               Navigator.pop(context);
             },
-            child: const Text('Speichern'),
+            child: Text(_l('Speichern', 'Save')),
           ),
         ],
       ),
@@ -917,7 +969,14 @@ class _HomeScreenState extends State<HomeScreen> {
     final bool hasAnyPoints = _areas.any((area) => area.markers.isNotEmpty);
     if (!hasAnyPoints) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bitte füge zuerst Messpunkte hinzu')),
+        SnackBar(
+          content: Text(
+            _l(
+              'Bitte füge zuerst Messpunkte hinzu',
+              'Please add measurement points first',
+            ),
+          ),
+        ),
       );
       return;
     }
@@ -944,14 +1003,20 @@ class _HomeScreenState extends State<HomeScreen> {
         referencePoint: _referencePoint,
         pixelsPerMeter: _pixelsPerMeter,
         markerSize: _markerSize,
+        isEnglish: _isEnglish, // <-- Neuer Parameter
       );
 
       debugPrint('Main: Export erfolgreich beendet.');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('PDF wurde erfolgreich erstellt!'),
+          SnackBar(
+            content: Text(
+              _l(
+                'PDF wurde erfolgreich erstellt!',
+                'PDF created successfully!',
+              ),
+            ),
             backgroundColor: Colors.green,
           ),
         );
@@ -963,7 +1028,9 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Fehler beim PDF-Export: ${e.toString()}'),
+            content: Text(
+              '${_l('Fehler beim PDF-Export', 'Error during PDF export')}: ${e.toString()}',
+            ),
             backgroundColor: Colors.red,
           ),
         );
@@ -1031,7 +1098,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Projekt erfolgreich gespeichert')),
+          SnackBar(
+            content: Text(
+              _l(
+                'Projekt erfolgreich gespeichert',
+                'Project saved successfully',
+              ),
+            ),
+          ),
         );
       }
     } catch (e) {
@@ -1131,7 +1205,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 _currentMousePosition = null;
               });
             },
-            tooltip: 'Massstab setzen',
+            tooltip: _l('Maßstab setzen', 'Set Scale'),
           ),
           IconButton(
             icon: Icon(
@@ -1144,9 +1218,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 _isCalibrating = false;
                 if (_isSettingReferencePoint) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
+                    SnackBar(
                       content: Text(
-                        'Klicken Sie auf den gewünschten Nullpunkt (z.B. unten links).',
+                        _l(
+                          'Klicken Sie auf den gewünschten Nullpunkt (z.B. unten links).',
+                          'Click on the desired zero point (e.g., bottom left).',
+                        ),
                       ),
                     ),
                   );
@@ -1178,7 +1255,10 @@ class _HomeScreenState extends State<HomeScreen> {
               color: AppBluetoothService.isConnected ? Colors.blue : null,
             ),
             onPressed: _isBluetoothConnecting ? null : _connectExternalSensor,
-            tooltip: 'Externen Bluetooth-Sensor verbinden',
+            tooltip: _l(
+              'Externen Bluetooth-Sensor verbinden',
+              'Connect External Bluetooth Sensor',
+            ),
           ),
           IconButton(
             icon: _isExportingPdf
@@ -1194,22 +1274,25 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: _pdfBytes != null && !_isExportingPdf
                 ? _exportToPdf
                 : null,
-            tooltip: 'Export als PDF',
+            tooltip: _l('Export als PDF', 'Export as PDF'),
           ),
           IconButton(
             icon: const Icon(Icons.folder),
             onPressed: _pickFloorPlan,
-            tooltip: 'Grundriss laden (PDF/Bild)',
+            tooltip: _l(
+              'Grundriss laden (PDF/Bild)',
+              'Load Floor Plan (PDF/Image)',
+            ),
           ),
           IconButton(
             icon: const Icon(Icons.brightness_6),
             onPressed: () => context.read<ThemeProvider>().toggleTheme(),
-            tooltip: 'Theme umschalten',
+            tooltip: _l('Theme umschalten', 'Toggle Theme'),
           ),
           IconButton(
             icon: const Icon(Icons.color_lens),
             onPressed: _showColorPicker,
-            tooltip: 'Hintergrundfarbe',
+            tooltip: _l('Hintergrundfarbe', 'Background Color'),
           ),
 
           IconButton(
@@ -1237,15 +1320,24 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             DrawerHeader(
               decoration: BoxDecoration(color: Theme.of(context).primaryColor),
-              child: const Text(
-                'Menü',
-                style: TextStyle(color: Colors.white, fontSize: 24),
+              child: Text(
+                _l('Menü', 'Menu'),
+                style: const TextStyle(color: Colors.white, fontSize: 24),
               ),
             ),
+            SwitchListTile(
+              secondary: const Icon(Icons.language),
+              title: const Text('English Language'),
+              value: _isEnglish,
+              onChanged: (val) => setState(() => _isEnglish = val),
+            ),
+            const Divider(),
             ListTile(
               leading: const Icon(Icons.file_open),
-              title: const Text('Projekt laden'),
-              subtitle: const Text('Gespeichertes Projekt öffnen'),
+              title: Text(_l('Projekt laden', 'Load Project')),
+              subtitle: Text(
+                _l('Gespeichertes Projekt öffnen', 'Open a saved project'),
+              ),
               onTap: () {
                 Navigator.pop(context);
                 _loadProject();
@@ -1254,8 +1346,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
             ListTile(
               leading: const Icon(Icons.save),
-              title: const Text('Projekt speichern'),
-              subtitle: const Text('Aktuellen Stand sichern'),
+              title: Text(_l('Projekt speichern', 'Save Project')),
+              subtitle: Text(
+                _l('Aktuellen Stand sichern', 'Save current progress'),
+              ),
               onTap: () {
                 Navigator.pop(context);
                 _saveProject();
@@ -1263,14 +1357,16 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.add_photo_alternate),
-              title: const Text('Logo hochladen'),
+              title: Text(_l('Logo hochladen', 'Upload Logo')),
               trailing: _logoBytes != null
                   ? Image.memory(_logoBytes!, height: 30)
                   : const Text(
                       'By OvW',
                       style: TextStyle(color: Colors.grey, fontSize: 10),
                     ),
-              subtitle: const Text('Erscheint im PDF-Kopf'),
+              subtitle: Text(
+                _l('Erscheint im PDF-Kopf', 'Appears in PDF header'),
+              ),
               onTap: () {
                 Navigator.pop(context);
                 _pickLogo();
@@ -1278,8 +1374,10 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.info_outline),
-              title: const Text('Projekt-Infos bearbeiten'),
-              subtitle: const Text('Name, Messgerät, Notizen'),
+              title: Text(_l('Projekt-Infos bearbeiten', 'Edit Project Info')),
+              subtitle: Text(
+                _l('Name, Messgerät, Notizen', 'Name, Device, Notes'),
+              ),
               onTap: () {
                 Navigator.pop(context);
                 _showProjectInfoDialog();
@@ -1287,7 +1385,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.delete),
-              title: const Text('Messpunkte löschen'),
+              title: Text(_l('Messpunkte löschen', 'Delete Points')),
               onTap: () {
                 Navigator.pop(context);
                 setState(() => _currentPoints.clear());
@@ -1295,7 +1393,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.refresh),
-              title: const Text('Neustart'),
+              title: Text(_l('Neustart', 'Restart')),
               onTap: () {
                 Navigator.pop(context);
                 _confirmReset();
@@ -1303,16 +1401,18 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.help_center_outlined),
-              title: const Text('Hilfe & Anleitung'),
-              subtitle: const Text('App-Handbuch und Lux-Tabelle'),
+              title: Text(_l('Hilfe & Anleitung', 'Help & Guide')),
+              subtitle: Text(
+                _l('App-Handbuch und Lux-Tabelle', 'App manual and Lux table'),
+              ),
               onTap: () {
                 Navigator.pop(context);
-                showHelpDialog(context);
+                showHelpDialog(context, _isEnglish, _appVersion);
               },
             ),
             ListTile(
               leading: const Icon(Icons.sensors),
-              title: const Text('Sensorkalibrierung'),
+              title: Text(_l('Sensorkalibrierung', 'Sensor Calibration')),
               onTap: () {
                 Navigator.pop(context);
                 setState(() => _showSensorSheet = true);
@@ -1325,25 +1425,27 @@ class _HomeScreenState extends State<HomeScreen> {
                 vertical: 8.0,
               ),
               child: Text(
-                'Hilfsraster',
+                _l('Hilfsraster', 'Guide Grid'),
                 style: Theme.of(context).textTheme.titleSmall,
               ),
             ),
             SwitchListTile(
               secondary: const Icon(Icons.grid_4x4),
-              title: const Text('Raster anzeigen'),
+              title: Text(_l('Raster anzeigen', 'Show Grid')),
               value: _showGrid,
               onChanged: (val) => setState(() => _showGrid = val),
             ),
             if (_showGrid) ...[
               SwitchListTile(
                 secondary: const Icon(Icons.pin_drop),
-                title: const Text('Am Raster andocken'),
+                title: Text(_l('Am Raster andocken', 'Snap to Grid')),
                 value: _snapToGrid,
                 onChanged: (val) => setState(() => _snapToGrid = val),
               ),
               ListTile(
-                title: Text('X-Raster: ${_gridSizeX.toStringAsFixed(1)} m'),
+                title: Text(
+                  '${_l('X-Raster', 'X-Grid')}: ${_gridSizeX.toStringAsFixed(1)} m',
+                ),
                 subtitle: Slider(
                   value: _gridSizeX,
                   min: 0.5,
@@ -1353,7 +1455,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               ListTile(
-                title: Text('Y-Raster: ${_gridSizeY.toStringAsFixed(1)} m'),
+                title: Text(
+                  '${_l('Y-Raster', 'Y-Grid')}: ${_gridSizeY.toStringAsFixed(1)} m',
+                ),
                 subtitle: Slider(
                   value: _gridSizeY,
                   min: 0.5,
@@ -1364,14 +1468,16 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               SwitchListTile(
                 secondary: const Icon(Icons.open_with),
-                title: const Text('Raster verschieben'),
-                subtitle: const Text('Maus ziehen zum Bewegen'),
+                title: Text(_l('Raster verschieben', 'Move Grid')),
+                subtitle: Text(
+                  _l('Maus ziehen zum Bewegen', 'Drag mouse to move'),
+                ),
                 value: _isMovingGrid,
                 onChanged: (val) => setState(() => _isMovingGrid = val),
               ),
               ListTile(
                 leading: const Icon(Icons.restore),
-                title: const Text('Position zurücksetzen'),
+                title: Text(_l('Position zurücksetzen', 'Reset Position')),
                 onTap: () {
                   setState(() {
                     _gridOffset = Offset.zero;
@@ -1380,7 +1486,9 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               ListTile(
                 leading: const Icon(Icons.gps_fixed),
-                title: const Text('Referenzpunkt zurücksetzen'),
+                title: Text(
+                  _l('Referenzpunkt zurücksetzen', 'Reset Reference Point'),
+                ),
                 onTap: () {
                   setState(() => _referencePoint = Offset.zero);
                   Navigator.pop(context);
@@ -1390,7 +1498,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const Divider(),
             ListTile(
               leading: const Icon(Icons.straighten),
-              title: const Text('Marker-Größe'),
+              title: Text(_l('Marker-Größe', 'Marker Size')),
               subtitle: Slider(
                 value: _markerSize,
                 min: 12,
@@ -1409,11 +1517,11 @@ class _HomeScreenState extends State<HomeScreen> {
               color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
               child: Row(
                 children: [
-                  const Padding(
-                    padding: EdgeInsets.only(left: 16, right: 8),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 16, right: 8),
                     child: Text(
-                      'Bereiche :',
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                      '${_l('Bereiche', 'Areas')} :',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ),
                   Expanded(
@@ -1443,7 +1551,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   IconButton(
                     icon: const Icon(Icons.add_circle_outline),
                     onPressed: _showAddAreaDialog,
-                    tooltip: 'Neuen Bereich anlegen',
+                    tooltip: _l('Neuen Bereich anlegen', 'Create new area'),
                   ),
                 ],
               ),
@@ -1455,7 +1563,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   Center(
                     child: ElevatedButton(
                       onPressed: _pickFloorPlan,
-                      child: const Text('Grundriss laden (PDF/Bild)'),
+                      child: Text(
+                        _l(
+                          'Grundriss laden (PDF/Bild)',
+                          'Load Floor Plan (PDF/Image)',
+                        ),
+                      ),
                     ),
                   )
                 else
@@ -1738,9 +1851,12 @@ class _HomeScreenState extends State<HomeScreen> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                const Text(
-                                  'Sensorkalibrierung',
-                                  style: TextStyle(
+                                Text(
+                                  _l(
+                                    'Sensorkalibrierung',
+                                    'Sensor Calibration',
+                                  ),
+                                  style: const TextStyle(
                                     fontSize: 18,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -1764,8 +1880,14 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                   child: Text(
                                     _hasHardwareSensor
-                                        ? 'Hardware-Sensor aktiv'
-                                        : 'Simulations-Modus',
+                                        ? _l(
+                                            'Hardware-Sensor aktiv',
+                                            'Hardware sensor active',
+                                          )
+                                        : _l(
+                                            'Simulations-Modus',
+                                            'Simulation mode',
+                                          ),
                                     style: TextStyle(
                                       color: _hasHardwareSensor
                                           ? Colors.green
@@ -1783,8 +1905,10 @@ class _HomeScreenState extends State<HomeScreen> {
                                   onPressed: _isBluetoothConnecting
                                       ? null
                                       : _connectExternalSensor,
-                                  tooltip:
-                                      'Externen Bluetooth-Sensor verbinden',
+                                  tooltip: _l(
+                                    'Externen Bluetooth-Sensor verbinden',
+                                    'Connect external Bluetooth sensor',
+                                  ),
                                 ),
                                 IconButton(
                                   icon: const Icon(Icons.close),
@@ -1805,14 +1929,17 @@ class _HomeScreenState extends State<HomeScreen> {
                                   child: Text(
                                     _hasHardwareSensor &&
                                             _currentLightValue == null
-                                        ? 'Warte auf Sensordaten...'
-                                        : 'Aktuell: ${_currentLightValue?.toStringAsFixed(1) ?? "---"} lx',
+                                        ? _l(
+                                            'Warte auf Sensordaten...',
+                                            'Waiting for sensor data...',
+                                          )
+                                        : '${_l('Aktuell', 'Current')}: ${_currentLightValue?.toStringAsFixed(1) ?? "---"} lx',
                                     style: const TextStyle(fontSize: 16),
                                   ),
                                 ),
                                 const Spacer(),
                                 Text(
-                                  'Kalibriert: ${(_currentLightValue != null ? (_currentLightValue! * _lightCalibrationFactor) : 0.0).toStringAsFixed(1)} lx',
+                                  '${_l('Kalibriert', 'Calibrated')}: ${(_currentLightValue != null ? (_currentLightValue! * _lightCalibrationFactor) : 0.0).toStringAsFixed(1)} lx',
                                   style: const TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
@@ -1824,7 +1951,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             const SizedBox(height: 10),
                             Row(
                               children: [
-                                const Text('Faktor: '),
+                                Text('${_l('Faktor', 'Factor')}: '),
                                 Expanded(
                                   child: Slider(
                                     value: _lightCalibrationFactor,
@@ -1852,7 +1979,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
-                                'Rohdaten (Hex): $_rawBluetoothData',
+                                '${_l('Rohdaten (Hex)', 'Raw Data (Hex)')}: $_rawBluetoothData',
                                 style: const TextStyle(
                                   fontFamily: 'monospace',
                                   fontSize: 12,
@@ -1915,7 +2042,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 style: const TextStyle(fontSize: 12),
                               ),
                               subtitle: Text(
-                                'Pos: ${realX.toStringAsFixed(2)}m / ${realY.toStringAsFixed(2)}m ${marker.sensorValue != null ? "| Wert: ${marker.sensorValue} Lux" : ""}',
+                                'Pos: ${realX.toStringAsFixed(2)}m / ${realY.toStringAsFixed(2)}m ${marker.sensorValue != null ? "| ${_l('Wert', 'Value')}: ${marker.sensorValue} Lux" : ""}',
                                 style: const TextStyle(fontSize: 10),
                               ),
                               onTap: () => _editMarkerData(index),
@@ -1929,19 +2056,22 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (_isLoading || _isExportingPdf)
                   Container(
                     color: Colors.black.withOpacity(0.5),
-                    child: const Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          CircularProgressIndicator(color: Colors.white),
-                          SizedBox(height: 16),
-                          Text(
-                            'PDF wird generiert...\nDies kann 5–15 Sekunden dauern',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: Colors.white, fontSize: 16),
-                          ),
-                        ],
-                      ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const CircularProgressIndicator(color: Colors.white),
+                        const SizedBox(height: 16),
+                        Text(
+                          _isExportingPdf
+                              ? _l(
+                                  'PDF wird generiert...\nDies kann 5–15 Sekunden dauern',
+                                  'Generating PDF...\nThis may take 5–15 seconds',
+                                )
+                              : '',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.white, fontSize: 16),
+                        ),
+                      ],
                     ),
                   ),
               ],

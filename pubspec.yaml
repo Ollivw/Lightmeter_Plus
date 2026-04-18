@@ -20,7 +20,7 @@ publish_to: "none" # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+1
 
 environment:
-  sdk: ">=3.11.4 <4.0.0"
+  sdk: ">=3.5.0 <4.0.0"
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -38,6 +38,7 @@ dependencies:
   light_sensor: ^3.0.2
   path_provider: ^2.1.0
   pdf: ^3.11.0
+  package_info_plus: ^9.0.0
   printing: ^5.14.3
   provider: ^6.1.2
   shared_preferences: ^2.2.2

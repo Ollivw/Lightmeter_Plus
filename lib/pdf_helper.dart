@@ -22,6 +22,7 @@ class PdfHelper {
     required Offset referencePoint,
     required double pixelsPerMeter,
     required double markerSize,
+    required bool isEnglish,
   }) async {
     debugPrint('PdfHelper: Starte optimierte PDF-Generierung...');
 
@@ -43,6 +44,7 @@ class PdfHelper {
         referencePoint: referencePoint,
         pixelsPerMeter: pixelsPerMeter,
         markerSize: markerSize,
+        isEnglish: isEnglish,
       ),
     );
 
@@ -115,7 +117,7 @@ class PdfHelper {
               ),
               pw.Align(
                 alignment: pw.Alignment.bottomRight,
-                child: _buildFooter(context),
+                child: _buildFooter(context, params.isEnglish),
               ),
             ],
           );
@@ -138,18 +140,18 @@ class PdfHelper {
       pdf.addPage(
         pw.MultiPage(
           pageFormat: PdfPageFormat.a4,
-          footer: _buildFooter,
+          footer: (context) => _buildFooter(context, params.isEnglish),
           margin: const pw.EdgeInsets.all(40),
           build: (pw.Context context) => [
-            _buildHeader(logoImage),
+            _buildHeader(logoImage, params.isEnglish),
             pw.SizedBox(height: 20),
-            _buildTitle(area.name),
+            _buildTitle(area.name, params.isEnglish),
             pw.SizedBox(height: 15),
             _buildProjectInfo(params, area),
             pw.SizedBox(height: 25),
-            if (stats.hasValues) _buildStatsRow(stats),
+            if (stats.hasValues) _buildStatsRow(stats, params.isEnglish),
             pw.SizedBox(height: 30),
-            ..._buildPagedTables(tableData),
+            ..._buildPagedTables(tableData, params.isEnglish),
           ],
         ),
       );
@@ -160,18 +162,18 @@ class PdfHelper {
 
   // ==================== Hilfsmethoden ====================
 
-  static pw.Widget _buildFooter(pw.Context context) {
+  static pw.Widget _buildFooter(pw.Context context, bool isEnglish) {
     return pw.Container(
       alignment: pw.Alignment.centerRight,
       margin: const pw.EdgeInsets.only(top: 10, right: 20),
       child: pw.Text(
-        'Seite ${context.pageNumber} von ${context.pagesCount}',
+        '${isEnglish ? "Page" : "Seite"} ${context.pageNumber} ${isEnglish ? "of" : "von"} ${context.pagesCount}',
         style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey),
       ),
     );
   }
 
-  static pw.Widget _buildHeader(pw.MemoryImage? logo) {
+  static pw.Widget _buildHeader(pw.MemoryImage? logo, bool isEnglish) {
     return pw.Container(
       margin: const pw.EdgeInsets.only(bottom: 15),
       child: pw.Row(
@@ -193,14 +195,15 @@ class PdfHelper {
     );
   }
 
-  static pw.Widget _buildTitle(String areaName) {
+  static pw.Widget _buildTitle(String areaName, bool isEnglish) {
     return pw.Text(
-      'Messbericht - $areaName',
+      '${isEnglish ? "Measurement Report" : "Messbericht"} - $areaName',
       style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold),
     );
   }
 
   static pw.Widget _buildProjectInfo(_PdfParams p, MeasurementArea area) {
+    final t = p.isEnglish ? _en : _de;
     return pw.Container(
       padding: const pw.EdgeInsets.all(12),
       decoration: pw.BoxDecoration(
@@ -214,21 +217,27 @@ class PdfHelper {
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
             children: [
               pw.Text(
-                'Projekt: ${p.projectName.isEmpty ? "Unbenannt" : p.projectName}',
+                '${t['project']}: ${p.projectName.isEmpty ? (p.isEnglish ? "Unnamed" : "Unbenannt") : p.projectName}',
                 style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
               ),
-              pw.Text('Datum: ${p.projectDate}'),
+              pw.Text('${t['date']}: ${p.projectDate}'),
             ],
           ),
           pw.Divider(color: PdfColors.grey300),
-          pw.Text('Prüfer: ${p.surveyorName.isEmpty ? "-" : p.surveyorName}'),
-          pw.Text('Geräte: ${p.usedDevices.isEmpty ? "-" : p.usedDevices}'),
-          pw.Text('Messung: ${p.selectedMeasurementType}'),
+          pw.Text(
+            '${t['surveyor']}: ${p.surveyorName.isEmpty ? "-" : p.surveyorName}',
+          ),
+          pw.Text(
+            '${t['devices']}: ${p.usedDevices.isEmpty ? "-" : p.usedDevices}',
+          ),
+          pw.Text(
+            '${t['measurement']}: ${p.isEnglish ? _translateType(p.selectedMeasurementType) : p.selectedMeasurementType}',
+          ),
           if (p.additionalNotes.isNotEmpty)
             pw.Padding(
               padding: const pw.EdgeInsets.only(top: 8),
               child: pw.Text(
-                'Notizen: ${p.additionalNotes}',
+                '${t['notes']}: ${p.additionalNotes}',
                 style: pw.TextStyle(
                   fontStyle: pw.FontStyle.italic,
                   color: PdfColors.grey700,
@@ -240,26 +249,27 @@ class PdfHelper {
     );
   }
 
-  static pw.Widget _buildStatsRow(AreaStats stats) {
+  static pw.Widget _buildStatsRow(AreaStats stats, bool isEnglish) {
+    final t = isEnglish ? _en : _de;
     return pw.Row(
       children: [
         _statCard(
-          'Minimum',
+          t['min']!,
           '${stats.min!.toStringAsFixed(1)} lx',
           PdfColors.blueGrey700,
         ),
         _statCard(
-          'Mittel',
+          t['avg']!,
           '${stats.mean!.toStringAsFixed(1)} lx',
           PdfColors.blue700,
         ),
         _statCard(
-          'Maximum',
+          t['max']!,
           '${stats.max!.toStringAsFixed(1)} lx',
           PdfColors.teal700,
         ),
         _statCard(
-          'Gleichmäßigkeit',
+          t['uni']!,
           stats.uniformity.toStringAsFixed(2),
           PdfColors.cyan700,
         ),
@@ -297,7 +307,11 @@ class PdfHelper {
     );
   }
 
-  static List<pw.Widget> _buildPagedTables(List<List<String>> tableData) {
+  static List<pw.Widget> _buildPagedTables(
+    List<List<String>> tableData,
+    bool isEnglish,
+  ) {
+    final t = isEnglish ? _en : _de;
     const chunkSize = 20;
     final chunks = <List<List<String>>>[];
 
@@ -330,7 +344,7 @@ class PdfHelper {
             3: const pw.FixedColumnWidth(55),
             4: const pw.FixedColumnWidth(75),
           },
-          headers: ['#', 'Bezeichnung', 'Position (X/Y)', 'Höhe', 'Wert'],
+          headers: ['#', t['label']!, t['pos']!, t['height']!, t['value']!],
           data: chunk,
         ),
       );
@@ -469,6 +483,48 @@ class PdfHelper {
       ];
     }).toList();
   }
+
+  static String _translateType(String deType) {
+    if (deType == 'Allgemeinbeleuchtung') return 'General Lighting';
+    if (deType == 'Sicherheitsbeleuchtung') return 'Emergency Lighting';
+    if (deType == 'Treppen') return 'Stairs';
+    if (deType == 'Parkbauten') return 'Parking Areas';
+    return deType;
+  }
+
+  static const Map<String, String> _de = {
+    'project': 'Projekt',
+    'surveyor': 'Prüfer',
+    'date': 'Datum',
+    'devices': 'Geräte',
+    'measurement': 'Messung',
+    'notes': 'Notizen',
+    'min': 'Minimum',
+    'avg': 'Mittel',
+    'max': 'Maximum',
+    'uni': 'Gleichmäßigkeit',
+    'label': 'Bezeichnung',
+    'pos': 'Position (X/Y)',
+    'height': 'Höhe',
+    'value': 'Wert',
+  };
+
+  static const Map<String, String> _en = {
+    'project': 'Project',
+    'surveyor': 'Surveyor',
+    'date': 'Date',
+    'devices': 'Devices',
+    'measurement': 'Measurement',
+    'notes': 'Notes',
+    'min': 'Minimum',
+    'avg': 'Average',
+    'max': 'Maximum',
+    'uni': 'Uniformity',
+    'label': 'Label',
+    'pos': 'Position (X/Y)',
+    'height': 'Height',
+    'value': 'Value',
+  };
 }
 
 // Hilfsklasse für compute()
@@ -486,6 +542,7 @@ class _PdfParams {
   final Offset referencePoint;
   final double pixelsPerMeter;
   final double markerSize;
+  final bool isEnglish;
 
   _PdfParams({
     required this.floorPlanBytes,
@@ -501,6 +558,7 @@ class _PdfParams {
     required this.referencePoint,
     required this.pixelsPerMeter,
     required this.markerSize,
+    required this.isEnglish,
   });
 }
 

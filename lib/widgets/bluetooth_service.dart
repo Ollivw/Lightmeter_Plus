@@ -1,61 +1,126 @@
 import 'dart:async';
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_web_bluetooth/flutter_web_bluetooth.dart';
+import 'package:universal_ble/universal_ble.dart';
 
 class AppBluetoothService {
-  // Die UUIDs aus deinem funktionierenden Script
   static const String serviceUuid = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
-  static const String luxCharUuid = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
-  static const String distCharUuid = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
+  static const String rxCharUuid =
+      "6e400002-b5a3-f393-e0a9-e50e24dcca9e"; // Write
+  static const String txCharUuid =
+      "6e400003-b5a3-f393-e0a9-e50e24dcca9e"; // Notify
 
-  /// Öffnet den Browser-Dialog zur Auswahl eines Bluetooth-Geräts
-  static Future<BluetoothDevice> requestDevice() async {
-    return await FlutterWebBluetooth.instance.requestDevice(
-      RequestOptionsBuilder(
-        [RequestFilterBuilder(name: 'LightDistance_Sensor')],
-        optionalServices: [serviceUuid],
-      ),
-    );
-  }
+  static String? _connectedDeviceId;
+  static StreamSubscription<BleDevice>? _scanSubscription;
 
-  /// Sucht nach passenden Charakteristiken und leitet Daten an den Callback weiter
-  static Future<bool> discoverAndListen(
-    BluetoothDevice device,
-    void Function(String uuid, ByteData data) onDataReceived,
+  // Speichern des aktuellen Value-Change-Callbacks
+  static OnValueChange? _currentValueChangeCallback;
+
+  static Future<void> connectAndListen(
+    void Function(String charUuid, Uint8List data) onDataReceived,
   ) async {
-    // Sicherheitsprüfung: Warten, bis der Stream die Verbindung bestätigt
-    final bool isConnected = await device.connected.first;
-    if (!isConnected) {
-      await device.connect();
-      await device.connected.firstWhere((c) => c);
-    }
+    try {
+      await disconnect(); // Alte Verbindung sauber beenden
 
-    final services = await device.discoverServices();
-    bool characteristicFound = false;
+      final completer = Completer<BleDevice>();
 
-    for (var service in services) {
-      final characteristics = await service.getCharacteristics();
-      for (var char in characteristics) {
-        debugPrint(
-          'Suche Daten auf: ${char.uuid} (Notify: ${char.properties.notify}, Read: ${char.properties.read})',
-        );
-        if (char.properties.notify || char.properties.read) {
-          if (char.properties.notify) {
-            await char.startNotifications();
-            char.value.listen((data) {
-              // Wir geben die UUID mit, damit der Parser weiß, was er gerade liest
-              onDataReceived(char.uuid, data);
-            });
-            debugPrint('Abonnement (Notify) erfolgreich für: ${char.uuid}');
-          } else if (char.properties.read) {
-            final value = await char.readValue();
-            onDataReceived(char.uuid, value);
+      // Scan-Stream verwenden
+      _scanSubscription = UniversalBle.scanStream.listen((BleDevice device) {
+        if (!completer.isCompleted) {
+          completer.complete(device);
+        }
+      });
+
+      await UniversalBle.startScan(
+        scanFilter: ScanFilter(withServices: [serviceUuid]),
+      );
+
+      final device = await completer.future.timeout(
+        const Duration(seconds: 30),
+        onTimeout: () =>
+            throw TimeoutException('Kein passendes Bluetooth-Gerät gefunden.'),
+      );
+
+      await UniversalBle.stopScan();
+      await _scanSubscription?.cancel();
+      _scanSubscription = null;
+
+      _connectedDeviceId = device.deviceId;
+
+      await UniversalBle.connect(device.deviceId);
+      debugPrint('Verbunden mit: ${device.name ?? device.deviceId}');
+
+      // Services entdecken
+      final services = await UniversalBle.discoverServices(device.deviceId);
+
+      // Value Change Callback setzen
+      _currentValueChangeCallback =
+          (
+            String deviceId, // Erster Parameter: deviceId
+            String characteristicId, // Zweiter Parameter: characteristicId
+            Uint8List value, // Dritter Parameter: value
+            int? timestamp, // Vierter Parameter: timestamp (kann null sein)
+          ) {
+            if (deviceId == _connectedDeviceId) {
+              onDataReceived(characteristicId, value);
+            }
+          };
+
+      UniversalBle.onValueChange = _currentValueChangeCallback;
+
+      // Notifications aktivieren
+      bool nusFound = false;
+      for (var service in services) {
+        if (service.uuid.toLowerCase() == serviceUuid.toLowerCase()) {
+          nusFound = true;
+          for (var char in service.characteristics) {
+            final charUuidLower = char.uuid.toLowerCase();
+
+            if (charUuidLower == txCharUuid.toLowerCase() ||
+                charUuidLower == rxCharUuid.toLowerCase()) {
+              if (char.properties.contains(CharacteristicProperty.notify) ||
+                  char.properties.contains(CharacteristicProperty.indicate)) {
+                await UniversalBle.setNotifiable(
+                  device.deviceId,
+                  service.uuid,
+                  char.uuid,
+                  BleInputProperty.notification,
+                );
+                debugPrint('Notify aktiviert: ${char.uuid}');
+              }
+            }
           }
-          characteristicFound = true;
         }
       }
+
+      if (!nusFound) {
+        throw Exception('Nordic UART Service nicht gefunden!');
+      }
+    } catch (e) {
+      debugPrint('Bluetooth Fehler: $e');
+      await disconnect();
+      rethrow;
     }
-    return characteristicFound;
   }
+
+  static Future<void> disconnect() async {
+    await _scanSubscription?.cancel();
+    _scanSubscription = null;
+
+    if (_connectedDeviceId != null) {
+      try {
+        await UniversalBle.disconnect(_connectedDeviceId!);
+      } catch (e) {
+        debugPrint('Disconnect-Fehler: $e');
+      }
+      _connectedDeviceId = null;
+    }
+
+    // Callback entfernen
+    if (_currentValueChangeCallback != null) {
+      UniversalBle.onValueChange = null;
+      _currentValueChangeCallback = null;
+    }
+  }
+
+  static bool get isConnected => _connectedDeviceId != null;
 }

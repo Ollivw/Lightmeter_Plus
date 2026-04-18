@@ -4,11 +4,12 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   printing
-  syncfusion_pdfviewer_windows
+  universal_ble
   url_launcher_windows
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST
+  jni
 )
 
 set(PLUGIN_BUNDLED_LIBRARIES)

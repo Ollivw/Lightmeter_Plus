@@ -7,7 +7,6 @@ import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:light_sensor/light_sensor.dart';
 import 'dart:async';
-import 'package:flutter_web_bluetooth/flutter_web_bluetooth.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:printing/printing.dart'; // Für stabiles PDF-Rendering
 import 'package:url_launcher/url_launcher.dart';
@@ -15,6 +14,7 @@ import 'save_helper.dart' if (dart.library.html) 'save_helper_web.dart';
 import 'pdf_helper.dart';
 
 import 'widgets/bluetooth_service.dart';
+import 'widgets/help_dialog.dart';
 import 'models/measurement_models.dart';
 import 'providers/theme_provider.dart';
 import 'widgets/custom_painters.dart';
@@ -72,12 +72,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   bool _hasHardwareSensor = false;
   StreamSubscription? _lightSubscription;
-  BluetoothDevice? _btDevice;
   bool _isBluetoothConnecting = false;
 
   // Aktuelle Sensorwerte
-  double? _currentDistanceValue;
   DateTime _lastUiUpdate = DateTime.fromMillisecondsSinceEpoch(0);
+  String _rawBluetoothData = 'Keine Daten';
 
   @override
   void initState() {
@@ -89,7 +88,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _lightSubscription?.cancel();
-    _btDevice?.disconnect();
+    AppBluetoothService.disconnect();
     super.dispose();
   }
 
@@ -140,60 +139,23 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _connectExternalSensor() async {
-    if (!kIsWeb) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Bluetooth-Sensoren werden aktuell nur in der Web-Version unterstützt.',
-            ),
-          ),
-        );
-      }
-      return;
-    }
-
-    final bool bluetoothAvailable =
-        await FlutterWebBluetooth.instance.isAvailable.first;
-    if (!bluetoothAvailable) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Web Bluetooth ist in diesem Browser nicht verfügbar oder deaktiviert.',
-            ),
-          ),
-        );
-      }
-      return;
-    }
-
     setState(() => _isBluetoothConnecting = true);
+
     try {
-      final device = await AppBluetoothService.requestDevice();
-
-      await device.connect();
-      setState(() => _btDevice = device);
-
       // FIX: Breche die Simulation oder den internen Sensor-Stream ab,
       // damit die Werte nicht mit den Bluetooth-Daten kollidieren.
       await _lightSubscription?.cancel();
       _lightSubscription = null;
 
-      final characteristicFound = await AppBluetoothService.discoverAndListen(
-        device,
-        _handleBluetoothData,
-      );
+      await AppBluetoothService.connectAndListen(_handleBluetoothData);
 
       if (mounted) {
+        // The device name is not directly available here after connectAndListen,
+        // but we can assume connection if no error was thrown.
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              characteristicFound
-                  ? 'Verbunden mit "${device.name ?? 'Unbekannt'}"'
-                  : 'Verbunden, aber keine passende Daten-Charakteristik gefunden.',
-            ),
-            backgroundColor: characteristicFound ? Colors.green : Colors.orange,
+            content: Text('Verbunden mit externem Bluetooth-Sensor.'),
+            backgroundColor: Colors.green,
           ),
         );
       }
@@ -209,28 +171,31 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _handleBluetoothData(String uuid, ByteData data) {
+  void _handleBluetoothData(String uuid, Uint8List data) {
     try {
-      bool updated = false;
+      final ByteData byteData = ByteData.view(data.buffer);
 
-      // Parsing basierend auf der UUID (wie im HTML Script)
-      if (uuid == AppBluetoothService.luxCharUuid && data.lengthInBytes >= 4) {
-        _currentLightValue = data.getFloat32(0, Endian.little);
-        updated = true;
-      } else if (uuid == AppBluetoothService.distCharUuid &&
-          data.lengthInBytes >= 2) {
-        _currentDistanceValue = data.getUint16(0, Endian.little).toDouble();
-        updated = true;
-      }
-
-      if (updated && mounted) {
+      // Parsing basierend auf der UUID
+      if (uuid == AppBluetoothService.txCharUuid &&
+          byteData.lengthInBytes >= 4) {
+        final newValue = byteData.getFloat32(0, Endian.little);
         final now = DateTime.now();
-        // Drosselung auf max 10 Updates pro Sekunde
+
+        // UI-Update drosseln (max 10 Hz), um Performance-Einbrüche zu vermeiden
         if (now.difference(_lastUiUpdate).inMilliseconds > 100) {
-          setState(() {
-            _hasHardwareSensor = true;
-          });
+          if (mounted) {
+            setState(() {
+              _rawBluetoothData = data
+                  .map((b) => b.toRadixString(16).padLeft(2, '0').toUpperCase())
+                  .join(' ');
+              _currentLightValue = newValue;
+              _hasHardwareSensor = true;
+            });
+          }
           _lastUiUpdate = now;
+        } else {
+          // Wert intern aktualisieren, damit er beim nächsten regulären Rebuild aktuell ist
+          _currentLightValue = newValue;
         }
       }
     } catch (e) {
@@ -269,6 +234,17 @@ class _HomeScreenState extends State<HomeScreen> {
   // Sensor-bezogene Variablen
   double? _currentLightValue;
   double _lightCalibrationFactor = 1.0;
+
+  // Beleuchtungsmessungstyp und Standardhöhe
+  String _selectedMeasurementType = 'Allgemeinbeleuchtung';
+  double _defaultMeasurementHeight =
+      0.75; // Initialwert für Allgemeinbeleuchtung
+  final Map<String, double> _measurementTypeOptions = {
+    'Allgemeinbeleuchtung': 0.75,
+    'Sicherheitsbeleuchtung': 0.20,
+    'Treppen': 0.20,
+    'Parkbauten': 0.20,
+  };
 
   Future<void> _confirmReset() async {
     final bool? confirm = await showDialog<bool>(
@@ -315,6 +291,8 @@ class _HomeScreenState extends State<HomeScreen> {
         _usedDevices = '';
         _additionalNotes = '';
         _pixelsPerMeter = 100.0;
+        _selectedMeasurementType = 'Allgemeinbeleuchtung';
+        _defaultMeasurementHeight = 0.75;
         _calibrationEnd = null;
         _currentMousePosition = null;
         _transformationController.value = Matrix4.identity();
@@ -323,7 +301,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _fitPdfToScreen() {
-    if (_pdfSize == null || _viewportSize == null) return;
+    if (_pdfSize == null ||
+        _viewportSize == null ||
+        _pdfSize!.width == 0 ||
+        _pdfSize!.height == 0) {
+      return;
+    }
 
     final double imageWidth = _pdfSize!.width;
     final double imageHeight = _pdfSize!.height;
@@ -345,11 +328,11 @@ class _HomeScreenState extends State<HomeScreen> {
       ..scale(scale);
   }
 
-  Future<void> _pickPdf() async {
+  Future<void> _pickFloorPlan() async {
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['pdf'],
+        allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
       );
 
       if (result != null) {
@@ -364,14 +347,42 @@ class _HomeScreenState extends State<HomeScreen> {
         if (bytes != null) {
           setState(() => _isLoading = true);
 
-          await for (var page in Printing.raster(bytes, pages: [0], dpi: 300)) {
-            final png = await page.toPng();
-            print(
-              'PDF Page rendered: ${page.width}x${page.height}, bytes: ${png.length}',
+          Uint8List? finalBytes;
+          Size? finalSize;
+          final String extension = platformFile.extension?.toLowerCase() ?? '';
+
+          if (extension == 'pdf') {
+            // PDF Handling
+            final double targetDpi =
+                (kIsWeb &&
+                    (defaultTargetPlatform == TargetPlatform.android ||
+                        defaultTargetPlatform == TargetPlatform.iOS))
+                ? 150
+                : 300;
+
+            await for (var page in Printing.raster(
+              bytes,
+              pages: [0],
+              dpi: targetDpi,
+            )) {
+              finalBytes = await page.toPng();
+              finalSize = Size(page.width.toDouble(), page.height.toDouble());
+              break;
+            }
+          } else {
+            // Bild Handling (jpg, png)
+            finalBytes = bytes;
+            final decodedImage = await decodeImageFromList(bytes);
+            finalSize = Size(
+              decodedImage.width.toDouble(),
+              decodedImage.height.toDouble(),
             );
+          }
+
+          if (finalBytes != null && finalSize != null) {
             setState(() {
-              _pdfBytes = png;
-              _pdfSize = Size(page.width.toDouble(), page.height.toDouble());
+              _pdfBytes = finalBytes;
+              _pdfSize = finalSize;
               _areas.clear();
               _areas.add(MeasurementArea(name: 'Allgemein'));
               _selectedAreaIndex = 0;
@@ -385,15 +396,12 @@ class _HomeScreenState extends State<HomeScreen> {
               _calibrationStart = null;
               _calibrationEnd = null;
               _currentMousePosition = null;
-              _transformationController.value =
-                  Matrix4.identity(); // Reset first
-              // After setting PDF size and knowing viewport size, fit to screen
+              _transformationController.value = Matrix4.identity();
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 _fitPdfToScreen();
               });
               _isLoading = false;
             });
-            break;
           }
         }
       }
@@ -402,13 +410,75 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Fehler beim Laden der PDF: ${e.toString()}'),
+            content: Text('Fehler beim Laden des Grundrisses: ${e.toString()}'),
             backgroundColor: Colors.red,
           ),
         );
       }
     } finally {
       setState(() => _isLoading = false);
+    }
+  }
+
+  /// Ermöglicht das Scannen eines Dokuments (Native) oder Kamera-Upload (Web)
+  Future<void> _scanFloorPlan() async {
+    if (kIsWeb) {
+      // Im Web nutzen wir den FilePicker mit dem Hinweis auf die Kamera
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Nutzen Sie im folgenden Dialog "Kamera" oder "Dokument scannen".',
+          ),
+          duration: Duration(seconds: 3),
+        ),
+      );
+      _pickFloorPlan();
+      return;
+    }
+
+    // Hinweis: Für native Plattformen (Android/iOS) müsste das Paket 'edge_detection'
+    // oder 'google_mlkit_document_scanner' in der pubspec.yaml hinzugefügt werden.
+    try {
+      setState(() => _isLoading = true);
+
+      // Beispiel-Logik für eine native Scanner-Integration:
+      // final String? imagePath = await EdgeDetection.detectEdge(
+      //   saveTo: (await getTemporaryDirectory()).path + '/scan.png',
+      //   canUseGallery: true,
+      //   androidScanTitle: 'Grundriss scannen',
+      //   androidConfirmButtonText: 'Fertig',
+      // );
+
+      // Da wir hier im Code-Kontext bleiben, simulieren wir die Verarbeitung
+      // eines Pfades, falls du eine Scanner-Library einbindest:
+      /*
+      if (imagePath != null) {
+        final File imageFile = File(imagePath);
+        final Uint8List bytes = await imageFile.readAsBytes();
+        final decodedImage = await decodeImageFromList(bytes);
+        
+        setState(() {
+          _pdfBytes = bytes;
+          _pdfSize = Size(decodedImage.width.toDouble(), decodedImage.height.toDouble());
+          _areas.clear();
+          _areas.add(MeasurementArea(name: 'Scan - ${DateTime.now().hour}:${DateTime.now().minute}'));
+          _selectedAreaIndex = 0;
+          _isLoading = false;
+        });
+        _fitPdfToScreen();
+      }
+      */
+
+      // Vorläufiger Fallback, solange kein natives Paket aktiv ist:
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Scanner-Modul für native App bereit zur Aktivierung.'),
+        ),
+      );
+    } catch (e) {
+      setState(() => _isLoading = false);
+      debugPrint('Scan Fehler: $e');
     }
   }
 
@@ -463,7 +533,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showCalibrationDialog() {
-    if (_calibrationStart == null || _calibrationEnd == null) return;
+    if (_calibrationStart == null || _calibrationEnd == null) {
+      return;
+    }
 
     final controller = TextEditingController(text: '5.0');
     showDialog(
@@ -515,61 +587,116 @@ class _HomeScreenState extends State<HomeScreen> {
     final dController = TextEditingController(text: _usedDevices);
     final nController = TextEditingController(text: _additionalNotes);
 
+    // Lokaler Zustand für den Dialog
+    String dialogSelectedMeasurementType = _selectedMeasurementType;
+    double dialogDefaultMeasurementHeight = _defaultMeasurementHeight;
+
+    final TextEditingController heightInputController = TextEditingController(
+      text: dialogDefaultMeasurementHeight.toString(),
+    );
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Projekt-Informationen'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: pController,
-                decoration: const InputDecoration(labelText: 'Projektname'),
+      builder: (context) => StatefulBuilder(
+        builder: (BuildContext context, StateSetter setStateDialog) {
+          return AlertDialog(
+            title: const Text('Projekt-Informationen'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: pController,
+                    decoration: const InputDecoration(labelText: 'Projektname'),
+                  ),
+                  TextField(
+                    controller: sController,
+                    decoration: const InputDecoration(
+                      labelText: 'Prüfer / Person',
+                    ),
+                  ),
+                  TextField(
+                    controller: dateController,
+                    decoration: const InputDecoration(
+                      labelText: 'Datum / Uhrzeit',
+                    ),
+                  ),
+                  TextField(
+                    controller: dController,
+                    decoration: const InputDecoration(
+                      labelText: 'Verwendete Geräte',
+                    ),
+                  ),
+                  DropdownButtonFormField<String>(
+                    initialValue: dialogSelectedMeasurementType,
+                    decoration: const InputDecoration(
+                      labelText: 'Art der Beleuchtungsmessung',
+                    ),
+                    items: _measurementTypeOptions.keys.map((String type) {
+                      return DropdownMenuItem<String>(
+                        value: type,
+                        child: Text(type),
+                      );
+                    }).toList(),
+                    onChanged: (String? newValue) {
+                      if (newValue != null) {
+                        setStateDialog(() {
+                          dialogSelectedMeasurementType = newValue;
+                          dialogDefaultMeasurementHeight =
+                              _measurementTypeOptions[newValue] ??
+                              0.75; // Update internal value
+                          heightInputController.text =
+                              dialogDefaultMeasurementHeight
+                                  .toString(); // Update TextField
+                        });
+                      }
+                    },
+                  ),
+                  TextField(
+                    controller: heightInputController,
+                    keyboardType: TextInputType.number,
+                    onChanged: (value) {
+                      dialogDefaultMeasurementHeight =
+                          double.tryParse(value) ?? 0.75;
+                    },
+                    decoration: const InputDecoration(
+                      labelText: 'Standard-Messebene / Höhe',
+                    ),
+                  ),
+                  TextField(
+                    controller: nController,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Infos(Lux-Werte, etc.)',
+                    ),
+                  ),
+                ],
               ),
-              TextField(
-                controller: sController,
-                decoration: const InputDecoration(labelText: 'Prüfer / Person'),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Abbrechen'),
               ),
-              TextField(
-                controller: dateController,
-                decoration: const InputDecoration(labelText: 'Datum / Uhrzeit'),
-              ),
-              TextField(
-                controller: dController,
-                decoration: const InputDecoration(
-                  labelText: 'Verwendete Geräte',
-                ),
-              ),
-              TextField(
-                controller: nController,
-                maxLines: 3,
-                decoration: const InputDecoration(
-                  labelText: 'Zusätzliche Infos',
-                ),
+              ElevatedButton(
+                onPressed: () {
+                  setState(() {
+                    _projectName = pController.text;
+                    _surveyorName = sController.text;
+                    _projectDate = dateController.text;
+                    _usedDevices = dController.text;
+                    _additionalNotes = nController.text;
+                    _selectedMeasurementType = dialogSelectedMeasurementType;
+                    _defaultMeasurementHeight =
+                        double.tryParse(heightInputController.text) ?? 0.75;
+                  });
+                  Navigator.pop(context);
+                },
+                child: const Text('Speichern'),
               ),
             ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Abbrechen'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              setState(() {
-                _projectName = pController.text;
-                _surveyorName = sController.text;
-                _projectDate = dateController.text;
-                _usedDevices = dController.text;
-                _additionalNotes = nController.text;
-              });
-              Navigator.pop(context);
-            },
-            child: const Text('Speichern'),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -667,7 +794,7 @@ class _HomeScreenState extends State<HomeScreen> {
             TextField(
               controller: labelController,
               decoration: const InputDecoration(
-                labelText: 'Bezeichnung (z.B. Raumname)',
+                labelText: 'Bezeichnung (z.B. Zone,Tisch, etc.)',
               ),
             ),
             TextField(
@@ -785,17 +912,26 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _exportToPdf() async {
-    if (_pdfBytes == null) return;
+    if (_pdfBytes == null || _isExportingPdf) return;
 
-    bool hasAnyPoints = _areas.any((area) => area.markers.isNotEmpty);
-    if (!hasAnyPoints) return;
+    final bool hasAnyPoints = _areas.any((area) => area.markers.isNotEmpty);
+    if (!hasAnyPoints) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bitte füge zuerst Messpunkte hinzu')),
+      );
+      return;
+    }
 
     setState(() => _isExportingPdf = true);
-    await Future.delayed(const Duration(milliseconds: 100));
+
+    // Kleiner Delay, damit der Lade-Overlay sofort sichtbar wird
+    await Future.delayed(const Duration(milliseconds: 500));
 
     try {
+      debugPrint('Main: Starte PDF Export...');
+
       await PdfHelper.exportToPdf(
-        pdfBytes: _pdfBytes!,
+        floorPlanBytes: _pdfBytes!, // ← bleibt gleich
         logoBytes: _logoBytes,
         pdfSize: _pdfSize!,
         projectName: _projectName,
@@ -803,20 +939,46 @@ class _HomeScreenState extends State<HomeScreen> {
         projectDate: _projectDate,
         usedDevices: _usedDevices,
         additionalNotes: _additionalNotes,
+        selectedMeasurementType: _selectedMeasurementType,
         areas: _areas,
         referencePoint: _referencePoint,
         pixelsPerMeter: _pixelsPerMeter,
         markerSize: _markerSize,
       );
-    } catch (e) {
-      debugPrint('Export Error: $e');
+
+      debugPrint('Main: Export erfolgreich beendet.');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('PDF wurde erfolgreich erstellt!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e, stack) {
+      debugPrint('PDF Fehler: $e');
+      debugPrint(stack.toString());
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Fehler beim PDF-Export: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } finally {
-      setState(() => _isExportingPdf = false);
+      if (mounted) {
+        setState(() => _isExportingPdf = false);
+      }
     }
   }
 
   Offset _snapToGridOffset(Offset pos) {
-    if (!_showGrid || !_snapToGrid) return pos;
+    if (!_showGrid || !_snapToGrid) {
+      return pos;
+    }
     final double gx = _gridSizeX * _pixelsPerMeter;
     final double gy = _gridSizeY * _pixelsPerMeter;
     return Offset(
@@ -826,7 +988,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _saveProject() async {
-    if (_pdfBytes == null) return;
+    if (_pdfBytes == null) {
+      return;
+    }
 
     try {
       final Map<String, dynamic> projectData = {
@@ -844,6 +1008,8 @@ class _HomeScreenState extends State<HomeScreen> {
         'markerSize': _markerSize,
         'lightCalibrationFactor': _lightCalibrationFactor,
         'currentLightValue': _currentLightValue,
+        'selectedMeasurementType': _selectedMeasurementType,
+        'defaultMeasurementHeight': _defaultMeasurementHeight,
         'refPointX': _referencePoint.dx,
         'refPointY': _referencePoint.dy,
         'pdfSizeWidth': _pdfSize?.width,
@@ -856,7 +1022,12 @@ class _HomeScreenState extends State<HomeScreen> {
       };
 
       final bytes = Uint8List.fromList(utf8.encode(jsonEncode(projectData)));
-      final success = await saveProjectFile(bytes, 'lichtmessung.lmp');
+
+      // Dateiname basierend auf Projektname oder Fallback
+      final String fileName = _projectName.trim().isEmpty
+          ? 'Lightmeter_Projekt'
+          : _projectName.trim();
+      final success = await saveProjectFile(bytes, '$fileName.lmp');
 
       if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -902,6 +1073,10 @@ class _HomeScreenState extends State<HomeScreen> {
             _snapToGrid = data['snapToGrid'] ?? false;
             _lightCalibrationFactor = data['lightCalibrationFactor'] ?? 1.0;
             _currentLightValue = data['currentLightValue'];
+            _selectedMeasurementType =
+                data['selectedMeasurementType'] ?? 'Allgemeinbeleuchtung';
+            _defaultMeasurementHeight =
+                data['defaultMeasurementHeight'] ?? 0.75;
             _markerSize = data['markerSize'] ?? 24.0;
             _logoBytes = data['logoBytesBase64'] != null
                 ? base64Decode(data['logoBytesBase64'])
@@ -987,21 +1162,44 @@ class _HomeScreenState extends State<HomeScreen> {
               tooltip: 'Kalibrierung abbrechen',
             ),
           IconButton(
+            icon: const Icon(Icons.document_scanner),
+            onPressed: _scanFloorPlan,
+            tooltip: 'Grundriss scannen',
+          ),
+          IconButton(
             icon: const Icon(Icons.lightbulb_outline),
             onPressed: () =>
                 setState(() => _showSensorSheet = !_showSensorSheet),
             tooltip: 'Sensorwerte anzeigen',
           ),
-
           IconButton(
-            icon: const Icon(Icons.picture_as_pdf),
-            onPressed: _pdfBytes != null ? _exportToPdf : null,
+            icon: Icon(
+              Icons.bluetooth,
+              color: AppBluetoothService.isConnected ? Colors.blue : null,
+            ),
+            onPressed: _isBluetoothConnecting ? null : _connectExternalSensor,
+            tooltip: 'Externen Bluetooth-Sensor verbinden',
+          ),
+          IconButton(
+            icon: _isExportingPdf
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2.5,
+                    ),
+                  )
+                : const Icon(Icons.picture_as_pdf),
+            onPressed: _pdfBytes != null && !_isExportingPdf
+                ? _exportToPdf
+                : null,
             tooltip: 'Export als PDF',
           ),
           IconButton(
             icon: const Icon(Icons.folder),
-            onPressed: _pickPdf,
-            tooltip: 'PDF Grundriss öffnen',
+            onPressed: _pickFloorPlan,
+            tooltip: 'Grundriss laden (PDF/Bild)',
           ),
           IconButton(
             icon: const Icon(Icons.brightness_6),
@@ -1104,38 +1302,12 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.info_outline),
-              title: const Text('Info'),
+              leading: const Icon(Icons.help_center_outlined),
+              title: const Text('Hilfe & Anleitung'),
+              subtitle: const Text('App-Handbuch und Lux-Tabelle'),
               onTap: () {
                 Navigator.pop(context);
-                showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('Info'),
-                    content: const Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Lightmeter Pro',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        Text('Made by OvW'),
-                        Text('Version: 0.8'),
-                      ],
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('Schließen'),
-                      ),
-                    ],
-                  ),
-                );
+                showHelpDialog(context);
               },
             ),
             ListTile(
@@ -1282,21 +1454,26 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (_pdfBytes == null)
                   Center(
                     child: ElevatedButton(
-                      onPressed: _pickPdf,
-                      child: const Text('PDF Grundriss laden'),
+                      onPressed: _pickFloorPlan,
+                      child: const Text('Grundriss laden (PDF/Bild)'),
                     ),
                   )
                 else
                   LayoutBuilder(
                     // New: Use LayoutBuilder to get the available size for the PDF
                     builder: (context, constraints) {
-                      // Update _viewportSize whenever the layout changes
+                      final newSize = constraints.biggest;
+
+                      // Verhindert unnötige Rebuilds während der BottomSheet-Animation
                       WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (_viewportSize != constraints.biggest) {
+                        // Nur aktualisieren, wenn sich die Größe signifikant geändert hat (> 1 Pixel)
+                        if (mounted &&
+                            (_viewportSize == null ||
+                                (_viewportSize!.height - newSize.height).abs() >
+                                    1)) {
                           setState(() {
-                            _viewportSize =
-                                constraints.biggest; // Update viewport size
-                            _fitPdfToScreen(); // Refit PDF to new viewport size
+                            _viewportSize = newSize;
+                            _fitPdfToScreen();
                           });
                         }
                       });
@@ -1317,6 +1494,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               Image.memory(
                                 _pdfBytes!,
                                 fit: BoxFit.contain,
+                                gaplessPlayback: true,
                                 alignment: Alignment.topLeft,
                               ),
                               // Hilfsraster
@@ -1348,7 +1526,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                         }
                                       : null,
                                   onTapUp: (TapUpDetails details) {
-                                    if (_isMovingGrid) return;
+                                    if (_isMovingGrid) {
+                                      return;
+                                    }
                                     final position = _snapToGridOffset(
                                       details.localPosition,
                                     );
@@ -1373,7 +1553,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                         _currentPoints.add(
                                           MeasurementMarker(
                                             position: position,
-                                            height: 0.8,
+                                            height: _defaultMeasurementHeight,
                                             label:
                                                 'P${_currentPoints.length + 1}',
                                           ),
@@ -1528,187 +1708,247 @@ class _HomeScreenState extends State<HomeScreen> {
                       );
                     },
                   ),
+
+                // Sensor-Panel / Messpunkt-Liste als Overlay (verhindert Layout-Loops)
+                if (_showSensorSheet)
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: Container(
+                        constraints: const BoxConstraints(maxWidth: 600),
+                        height: 200,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).cardColor,
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(16),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black26,
+                              blurRadius: 10,
+                              offset: const Offset(0, -2),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Sensorkalibrierung',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: _hasHardwareSensor
+                                        ? Colors.green.withOpacity(0.1)
+                                        : Colors.orange.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: _hasHardwareSensor
+                                          ? Colors.green
+                                          : Colors.orange,
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    _hasHardwareSensor
+                                        ? 'Hardware-Sensor aktiv'
+                                        : 'Simulations-Modus',
+                                    style: TextStyle(
+                                      color: _hasHardwareSensor
+                                          ? Colors.green
+                                          : Colors.orange,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: Icon(Icons.bluetooth),
+                                  color: AppBluetoothService.isConnected
+                                      ? Colors.blue
+                                      : null,
+                                  onPressed: _isBluetoothConnecting
+                                      ? null
+                                      : _connectExternalSensor,
+                                  tooltip:
+                                      'Externen Bluetooth-Sensor verbinden',
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.close),
+                                  onPressed: () =>
+                                      setState(() => _showSensorSheet = false),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.lightbulb,
+                                  color: Colors.orange,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    _hasHardwareSensor &&
+                                            _currentLightValue == null
+                                        ? 'Warte auf Sensordaten...'
+                                        : 'Aktuell: ${_currentLightValue?.toStringAsFixed(1) ?? "---"} lx',
+                                    style: const TextStyle(fontSize: 16),
+                                  ),
+                                ),
+                                const Spacer(),
+                                Text(
+                                  'Kalibriert: ${(_currentLightValue != null ? (_currentLightValue! * _lightCalibrationFactor) : 0.0).toStringAsFixed(1)} lx',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                const Text('Faktor: '),
+                                Expanded(
+                                  child: Slider(
+                                    value: _lightCalibrationFactor,
+                                    min: 0.01,
+                                    max: 3.0,
+                                    divisions: 299,
+                                    label: _lightCalibrationFactor
+                                        .toStringAsFixed(2),
+                                    onChanged: (val) => setState(
+                                      () => _lightCalibrationFactor = val,
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  _lightCalibrationFactor.toStringAsFixed(2),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.black12,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                'Rohdaten (Hex): $_rawBluetoothData',
+                                style: const TextStyle(
+                                  fontFamily: 'monospace',
+                                  fontSize: 12,
+                                  color: Colors.blueGrey,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  )
+                else if (_currentPoints.isNotEmpty)
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: Container(
+                        constraints: const BoxConstraints(maxWidth: 600),
+                        height: 120,
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).cardColor,
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(16),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black12,
+                              blurRadius: 5,
+                              offset: const Offset(0, -2),
+                            ),
+                          ],
+                        ),
+                        child: ListView.builder(
+                          itemCount: _currentPoints.length,
+                          itemBuilder: (context, index) {
+                            final marker = _currentPoints[index];
+                            double realX =
+                                (marker.position.dx - _referencePoint.dx) /
+                                _pixelsPerMeter;
+                            double realY =
+                                (_referencePoint.dy - marker.position.dy) /
+                                _pixelsPerMeter;
+                            return ListTile(
+                              dense: true,
+                              leading: CircleAvatar(
+                                radius: 12,
+                                backgroundColor: Theme.of(context).primaryColor,
+                                child: Text(
+                                  '${index + 1}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                  ),
+                                ),
+                              ),
+                              title: Text(
+                                '${_areas[_selectedAreaIndex].name} - ${marker.label.isNotEmpty ? marker.label : index + 1} (h: ${marker.height}m)',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                              subtitle: Text(
+                                'Pos: ${realX.toStringAsFixed(2)}m / ${realY.toStringAsFixed(2)}m ${marker.sensorValue != null ? "| Wert: ${marker.sensorValue} Lux" : ""}',
+                                style: const TextStyle(fontSize: 10),
+                              ),
+                              onTap: () => _editMarkerData(index),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+
                 if (_isLoading || _isExportingPdf)
                   Container(
-                    color: Colors.black26,
-                    child: const Center(child: CircularProgressIndicator()),
+                    color: Colors.black.withOpacity(0.5),
+                    child: const Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircularProgressIndicator(color: Colors.white),
+                          SizedBox(height: 16),
+                          Text(
+                            'PDF wird generiert...\nDies kann 5–15 Sekunden dauern',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.white, fontSize: 16),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
               ],
             ),
           ),
         ],
       ),
-      bottomSheet: _showSensorSheet
-          ? Container(
-              height: 200,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Theme.of(context).cardColor,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black26,
-                    blurRadius: 10,
-                    offset: const Offset(0, -2),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Sensorkalibrierung',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      // Status-Anzeige für den Sensor
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _hasHardwareSensor
-                              ? Colors.green.withOpacity(0.1)
-                              : Colors.orange.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: _hasHardwareSensor
-                                ? Colors.green
-                                : Colors.orange,
-                            width: 1,
-                          ),
-                        ),
-                        child: Text(
-                          _hasHardwareSensor
-                              ? 'Hardware-Sensor aktiv'
-                              : 'Simulations-Modus',
-                          style: TextStyle(
-                            color: _hasHardwareSensor
-                                ? Colors.green
-                                : Colors.orange,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      if (kIsWeb)
-                        IconButton(
-                          icon: Icon(
-                            _btDevice != null
-                                ? Icons.bluetooth_connected
-                                : Icons.bluetooth,
-                            color: _btDevice != null ? Colors.blue : null,
-                          ),
-                          onPressed: _isBluetoothConnecting
-                              ? null
-                              : _connectExternalSensor,
-                          tooltip: 'Externen Bluetooth-Sensor verbinden',
-                        ),
-                      if (!_hasHardwareSensor && !kIsWeb && Platform.isAndroid)
-                        IconButton(
-                          icon: const Icon(Icons.refresh, size: 20),
-                          tooltip: 'Sensor erneut suchen',
-                          onPressed: _initLightSensor,
-                        ),
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () =>
-                            setState(() => _showSensorSheet = false),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      const Icon(Icons.lightbulb, color: Colors.orange),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          _hasHardwareSensor && _currentLightValue == null
-                              ? 'Warte auf Sensordaten...'
-                              : 'Aktuell: ${_currentLightValue?.toStringAsFixed(1) ?? "---"} lx',
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                      ),
-                      // Text(
-                      //   _currentDistanceValue != null
-                      //       ? 'Distanz: ${_currentDistanceValue!.toStringAsFixed(0)} cm'
-                      //       : '',
-                      //   style: TextStyle(
-                      //     fontSize: 14,
-                      //     color: Theme.of(context).hintColor,
-                      //   ),
-                      // ),
-                      const Spacer(),
-                      Text(
-                        'Kalibriert: ${(_currentLightValue != null ? (_currentLightValue! * _lightCalibrationFactor) : 0.0).toStringAsFixed(1)} lx',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      const Text('Faktor: '),
-                      Expanded(
-                        child: Slider(
-                          value: _lightCalibrationFactor,
-                          min: 0.01,
-                          max: 3.0,
-                          divisions: 299,
-                          label: _lightCalibrationFactor.toStringAsFixed(2),
-                          onChanged: (val) =>
-                              setState(() => _lightCalibrationFactor = val),
-                        ),
-                      ),
-                      Text(_lightCalibrationFactor.toStringAsFixed(2)),
-                    ],
-                  ),
-                ],
-              ),
-            )
-          : (_currentPoints.isNotEmpty
-                ? Container(
-                    height: 120,
-                    color: Theme.of(context).cardColor,
-                    child: ListView.builder(
-                      itemCount: _currentPoints.length,
-                      itemBuilder: (context, index) {
-                        final marker = _currentPoints[index];
-                        double realX =
-                            (marker.position.dx - _referencePoint.dx) /
-                            _pixelsPerMeter;
-                        double realY =
-                            (_referencePoint.dy - marker.position.dy) /
-                            _pixelsPerMeter;
-                        return ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: Theme.of(context).primaryColor,
-                            child: Text(
-                              '${index + 1}',
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                          ),
-                          title: Text(
-                            '${_areas[_selectedAreaIndex].name} - ${marker.label.isNotEmpty ? marker.label : index + 1} (h: ${marker.height}m)',
-                          ),
-                          subtitle: Text(
-                            'Pos: ${realX.toStringAsFixed(2)}m / ${realY.toStringAsFixed(2)}m ${marker.sensorValue != null ? "| Wert: ${marker.sensorValue} Lux" : ""}',
-                          ),
-                          onTap: () => _editMarkerData(index),
-                        );
-                      },
-                    ),
-                  )
-                : null),
     );
   }
 }

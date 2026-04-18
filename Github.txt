@@ -1,0 +1,15 @@
+Alte Build-Reste löschen (optional, aber sicher):
+bash
+flutter clean
+flutter pub get
+
+
+Peanut neu ausführen:
+Benutze den Befehl mit dem korrekten Pfad-Präfix (Base-Href), damit Bilder und Skripte gefunden werden:
+bash
+flutter pub global run peanut --extra-args "--base-href=/Lightmeter_Plus/"
+
+
+Deployment pushen:
+bash
+git push origin gh-pages --force

@@ -102,7 +102,9 @@ class MeasurementPainter extends CustomPainter {
       textPainter.paint(canvas, referencePoint + Offset(5 / scale, 5 / scale));
     }
 
-    if (!isCalibrating) return;
+    if (!isCalibrating) {
+      return;
+    }
 
     final start = calibrationStart;
     if (start != null) {

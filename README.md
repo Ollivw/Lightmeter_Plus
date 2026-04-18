@@ -29,3 +29,12 @@ Finally, you can give the report a personal or professional touch by uploading a
 You can add different areas or rooms via the “Areas” section to get a separate evaluation for each room.
 
 Translated with DeepL.com (free version)
+
+## Updates
+
+Some Updates are included,
+
+- Better handling of PDF Export
+- included the possibility to import images as floorplan
+- addional Project Infos
+- etc.

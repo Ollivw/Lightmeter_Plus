@@ -37,4 +37,5 @@ Some Updates are included,
 - Better handling of PDF Export
 - included the possibility to import images as floorplan
 - addional Project Infos
+- English language support
 - etc.
